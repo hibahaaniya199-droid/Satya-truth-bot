@@ -1,6 +1,14 @@
 import requests, time, os
+import threading
+from flask import Flask
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
+app = Flask(__name__)
+@app.route('/')
+def home():
+    return "SATYA IS ALIVE 24/7!"
+def run_flask():
+    app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000)))
 
 def check_truth(news_text):
     url = "https://api.groq.com/openai/v1/chat/completions"
@@ -10,6 +18,7 @@ def check_truth(news_text):
     return r.json()["choices"][0]["message"]["content"]
 
 print("SATYA TRUTH BOT IS ALIVE - FOREVER!")
+threading.Thread(target=run_flask, daemon=True).start()
 offset=0
 while True:
     try:
