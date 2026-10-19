@@ -1,8 +1,0 @@
-python-telegram-bot==21.6
-groq
-tavily-python
-beautifulsoup4
-requests
-lxml
-python-dotenv
-nest-asyncio
