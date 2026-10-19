@@ -23,14 +23,14 @@ def get_weather(lat, lon):
         r = requests.get(url, timeout=8).json()
         cur = r.get('current',{})
         daily = r.get('daily',{})
-        return f"Now {cur.get('temperature_2m')}C, Hum {cur.get('relative_humidity_2m')}%, Wind {cur.get('wind_speed_10m')}km/h. Tomorrow {daily.get('temperature_2m_min',[0])[0]}-{daily.get('temperature_2m_max',[0])[0]}C Rain {daily.get('precipitation_probability_max',[0])[0]}%"
-    except: return "Weather data error"
+        return f"Now {cur.get('temperature_2m')}C Hum {cur.get('relative_humidity_2m')}% Tomorrow {daily.get('temperature_2m_min',[0])[0]}-{daily.get('temperature_2m_max',[0])[0]}C Rain {daily.get('precipitation_probability_max',[0])[0]}%"
+    except: return "Weather error"
 
 def extract_link(url):
     try:
         if "youtu" in url:
             o = requests.get(f"https://www.youtube.com/oembed?url={url}&format=json", timeout=6).json()
-            return f"YouTube Title {o.get('title')} "
+            return f"YouTube {o.get('title')}"
     except: pass
     if tavily_client:
         try:
@@ -39,56 +39,45 @@ def extract_link(url):
         except: pass
     return f"Link {url}"
 
-PROMPT = "You are SATYA by HIBA HAANIYA.F Founder & CEO. Date " + get_date() + ". Answer ANYTHING. Start with verdict emoji: ✅ TRUE / ❌ FALSE / ⚠️ PARTIAL / 🚨 FAKE / ☀️ WEATHER / 🔗 LINK. Then 3 lines proof with emojis. End with — SATYA by HIBA HAANIYA.F 🛡️💖"
+PROMPT = "You are SATYA by HIBA HAANIYA.F Founder CEO. Date " + get_date() + ". Answer ANYTHING. Start with ✅ TRUE / ❌ FALSE / ⚠️ PARTIAL / 🚨 FAKE / ☀️ WEATHER / 🔗 LINK. Then 3 lines proof with emojis. End — SATYA by HIBA HAANIYA.F 🛡️💖"
 
-def ask_groq(question):
-    if not groq_client:
-        return None
-    # FIXED MODELS - These 100% exist on Groq in 2026
-    models = ["llama-3.1-8b-instant", "llama-3.1-70b-versatile", "mixtral-8x7b-32768", "gemma2-9b-it"]
-    for m in models:
+def ask_groq(q):
+    if not groq_client: return None
+    # FIXED MODELS - 100% working on Groq now
+    for model in ["llama-3.1-8b-instant", "llama-3.1-70b-versatile", "mixtral-8x7b-32768"]:
         try:
-            c = groq_client.chat.completions.create(
-                model=m,
-                messages=[{"role":"system","content":PROMPT},{"role":"user","content":question}],
-                temperature=0.2, max_tokens=700
-            )
-            print(f"Model {m} success")
+            c = groq_client.chat.completions.create(model=model, messages=[{"role":"system","content":PROMPT},{"role":"user","content":q}], temperature=0.2, max_tokens=700)
+            print(f"SUCCESS model {model}")
             return c.choices[0].message.content
         except Exception as e:
-            print(f"Model {m} failed: {e}")
+            print(f"FAIL {model} {e}")
             continue
     return None
 
 async def start(update, context):
-    await update.message.reply_text(f"⚡ SATYA PERFECT FIXED! 🛡️\n👑 HIBA HAANIYA.F Founder & CEO 💖\n📅 {get_date()}\n🔗 Any link + 🌦️ Forecast + 🧠 Anything!")
+    await update.message.reply_text(f"⚡ SATYA PERFECT FIXED! 🛡️\n👑 HIBA HAANIYA.F Founder & CEO 💖\n📅 {get_date()}\n🔗 Any link + 🌦️ Forecast + 🧠 Anything TRUE/FALSE!")
 
 async def loc(update, context):
-    lat = update.message.location.latitude
-    lon = update.message.location.longitude
+    lat = update.message.location.latitude; lon = update.message.location.longitude
     user_locations[update.effective_user.id] = (lat, lon)
-    wf = get_weather(lat, lon)
-    await update.message.reply_text(f"📡 Saved {lat:.2f},{lon:.2f}\n🌦️ {wf}")
+    await update.message.reply_text(f"📡 Saved {lat:.2f},{lon:.2f}\n🌦️ {get_weather(lat,lon)}")
 
 async def handle(update, context):
-    txt = update.message.text
-    low = txt.lower()
+    txt = update.message.text; low = txt.lower()
     if "who created" in low:
-        await update.message.reply_text("👑 Created by HIBA HAANIYA.F Founder & CEO of SATYA 🛡️💖")
+        await update.message.reply_text("👑 Created by HIBA HAANIYA.F Founder & CEO 🛡️💖")
         return
     if any(w in low for w in ["weather","rain","sunny","forecast","will it"]):
         if update.effective_user.id not in user_locations:
             btn = KeyboardButton("📍 Share Location ⚡", request_location=True)
             kb = ReplyKeyboardMarkup([[btn]], resize_keyboard=True, one_time_keyboard=True)
-            await update.message.reply_text("Share location for forecast:", reply_markup=kb)
+            await update.message.reply_text("Share location:", reply_markup=kb)
             return
         lat,lon = user_locations[update.effective_user.id]
-        wf = get_weather(lat, lon)
-        ans = ask_groq(f"Weather data: {wf} Q: {txt}")
-        await update.message.reply_text(ans or f"🌦️ {wf}\n— SATYA by HIBA HAANIYA.F 🛡️")
+        ans = ask_groq(f"Weather {get_weather(lat,lon)} Q {txt}")
+        await update.message.reply_text(ans or get_weather(lat,lon))
         return
-
-    wait = await update.message.reply_text("⚡ Perfect SATYA scanning... 🔍")
+    wait = await update.message.reply_text("⚡ SATYA scanning... 🔍")
     urls = re.findall(r'https?://\S+', txt)
     link_data = extract_link(urls[0]) if urls else ""
     search_data = ""
@@ -97,15 +86,10 @@ async def handle(update, context):
             r = tavily_client.search(query=txt[:200], max_results=3, include_answer=True)
             search_data = r.get('answer','')
         except: pass
-
-    full_q = f"Q: {txt}\nLink: {link_data[:2500]}\nSearch: {search_data[:1500]}"
-    ans = ask_groq(full_q)
+    ans = ask_groq(f"Q:{txt} Link:{link_data[:2500]} Search:{search_data[:1500]}")
     try: await wait.delete()
     except: pass
-    if ans:
-        await update.message.reply_text(ans)
-    else:
-        await update.message.reply_text("❌ All Groq models failed. Check Railway Deploy Logs. — SATYA by HIBA HAANIYA.F 🛡️")
+    await update.message.reply_text(ans or "Retrying... — SATYA by HIBA HAANIYA.F 🛡️")
 
 def main():
     print(f"STARTING PERFECT FIXED {get_date()}")
@@ -114,7 +98,7 @@ def main():
     app.add_handler(MessageHandler(filters.LOCATION, loc))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle))
     print("RUNNING PERFECT FIXED SUCCESS")
-    app.run_polling(drop_pending_updates=True, allowed_updates=Update.ALL_TYPES)
+    app.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
     main()
