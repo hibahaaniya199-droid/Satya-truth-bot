@@ -1,5 +1,5 @@
-python-telegram-bot==20.8
-groq
-tavily-python
-requests
-python-dotenv
+python-telegram-bot==20.7
+groq==0.4.1
+tavily-python==0.3.6
+requests==2.31.0
+
