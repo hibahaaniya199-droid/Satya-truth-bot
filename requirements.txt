@@ -1,5 +1,5 @@
 python-telegram-bot==21.6
-groq
+groq>=0.20.0
 tavily-python
 python-dotenv
 httpx
