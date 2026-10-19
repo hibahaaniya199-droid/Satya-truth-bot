@@ -138,7 +138,8 @@ def main():
     app.add_handler(MessageHandler(filters.LOCATION, loc))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle))
     print("RUNNING BEAUTIFUL SUCCESS")
-    app.run_polling()
+    # FIX CONFLICT - drop old updates
+    app.run_polling(drop_pending_updates=True, allowed_updates=Update.ALL_TYPES)
 
 if __name__ == "__main__":
     main()
