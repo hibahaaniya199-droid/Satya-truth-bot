@@ -7,20 +7,20 @@ from groq import Groq
 from tavily import TavilyClient
 
 # --- ENV ---
-BOT_TOKEN = os.getenv("TELEGRAM_TOKEN")
-GROQ_KEY = os.getenv("GROQ_API_KEY")
-TAVILY_KEY = os.getenv("TAVILY_API_KEY")
+BOT_TOKEN = os.getenv("TELEGRAM_TOKEN", "").strip()
+GROQ_KEY = os.getenv("GROQ_API_KEY", "").strip()
+TAVILY_KEY = os.getenv("TAVILY_API_KEY", "").strip()
 CREATOR_NAME = "HIBA HAANIYA.F"
 
 # --- CLIENTS ---
-groq_client = Groq(api_key=GROQ_KEY) if GROQ_KEY else None
-tavily_client = TavilyClient(api_key=TAVILY_KEY) if TAVILY_KEY else None
+groq_client = Groq(api_key=GROQ_KEY) if GROQ_KEY and GROQ_KEY.startswith("gsk_") else None
+tavily_client = TavilyClient(api_key=TAVILY_KEY) if TAVILY_KEY and "tvly-" in TAVILY_KEY else None
 
 # --- SEARCH ---
 def live_search(query: str):
     try:
         if not tavily_client:
-            return "No Tavily key"
+            return "Live search not available"
         result = tavily_client.search(query=query, max_results=3, include_answer=True)
         context = ""
         for r in result.get('results', []):
@@ -63,6 +63,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
 
     try:
+        if not groq_client:
+            await update.message.reply_text(f"Groq key missing! Key starts with {GROQ_KEY[:4]}... Check Render Environment!")
+            return
+            
         completion = groq_client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=[{"role": "user", "content": system_prompt}],
@@ -70,13 +74,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         reply = completion.choices[0].message.content
     except Exception as e:
-        reply = f"Server busy: {e}. Try again!"
+        reply = f"Server busy: {e}. Try again! If 401, your GROQ_API_KEY is wrong in Render."
 
     await update.message.reply_text(reply)
 
-# --- MAIN - RENDER FIX ---
+# --- MAIN - FINAL RENDER FIX ---
 if __name__ == "__main__":
-    # Fix for Render asyncio error
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     
@@ -85,4 +88,5 @@ if __name__ == "__main__":
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     
     print(f"SATYA by {CREATOR_NAME} is starting...")
-    app.run_polling()
+    # THIS FIXES CONFLICT ERROR 100%
+    app.run_polling(drop_pending_updates=True, allowed_updates=Update.ALL_TYPES)
