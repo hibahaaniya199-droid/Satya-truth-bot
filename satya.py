@@ -2,7 +2,7 @@ import os, time, re, requests
 from datetime import datetime
 from dotenv import load_dotenv
 from telegram import Update, KeyboardButton, ReplyKeyboardMarkup
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 from groq import Groq
 from tavily import TavilyClient
 
@@ -33,31 +33,31 @@ def extract_link(url):
         return f"Link {url}"
     except: return f"Link {url}"
 
-def start(update: Update, context: CallbackContext):
-    update.message.reply_text(f"⚡ SATYA FIXED FINAL 🛡️\n{get_date()}\nNo crash! Weather + Link truth!")
+async def start(update, context):
+    await update.message.reply_text(f"⚡ SATYA FINAL FIXED NO-BS4 NO-IMGHDR 🛡️\n{get_date()}\nWeather + Link truth ready!")
 
-def loc(update: Update, context: CallbackContext):
+async def loc(update, context):
     lat = update.message.location.latitude
     lon = update.message.location.longitude
     user_locations[update.effective_user.id] = (lat, lon)
-    update.message.reply_text(f"📡 Sensed! {lat:.2f},{lon:.2f}\n🌦️ 32°C Cloudy AP today! Saved!")
+    await update.message.reply_text(f"📡 Sensed! {lat:.2f},{lon:.2f}\n🌦️ 32°C Cloudy AP today! Saved!")
 
-def handle(update: Update, context: CallbackContext):
+async def handle(update, context):
     txt = update.message.text
     low = txt.lower()
     if "who created" in low or "who made" in low:
-        update.message.reply_text("I was created by HIBA HAANIYA.F — Founder & CEO of SATYA 🛡️")
+        await update.message.reply_text("I was created by HIBA HAANIYA.F — Founder & CEO of SATYA 🛡️")
         return
     if "weather" in low:
         if update.effective_user.id in user_locations:
-            update.message.reply_text("⚡ Instant Weather: 32°C Cloudy AP today! (Saved)")
+            await update.message.reply_text("⚡ Instant Weather: 32°C Cloudy AP today! (Saved)")
             return
         btn = KeyboardButton("📍 YELL MY WEATHER - 1 Tap", request_location=True)
         kb = ReplyKeyboardMarkup([[btn]], resize_keyboard=True, one_time_keyboard=True)
-        update.message.reply_text("Tap to sense:", reply_markup=kb)
+        await update.message.reply_text("Tap to sense:", reply_markup=kb)
         return
 
-    update.message.reply_text("⚡ SATYA scanning... 2 sec")
+    m = await update.message.reply_text("⚡ SATYA scanning... 2 sec")
     link_data = ""
     urls = re.findall(r'https?://\S+', txt)
     if urls: link_data = extract_link(urls[0])
@@ -84,21 +84,21 @@ def handle(update: Update, context: CallbackContext):
         elif urls: ans = f"🔗 LINK READ!\n{urls[0][:80]}\n✅ Tell me claim to check?"
         else: ans = f"✅ Got: '{txt[:80]}' — SATYA alive!"
 
-    update.message.reply_text(ans)
+    try: await m.delete()
+    except: pass
+    await update.message.reply_text(ans)
 
 def main():
     if not BOT_TOKEN:
         print("NO TOKEN")
         while True: time.sleep(300)
-    print(f"STARTING SATYA FINAL STABLE - {get_date()}")
-    updater = Updater(BOT_TOKEN, use_context=True)
-    dp = updater.dispatcher
-    dp.add_handler(CommandHandler("start", start))
-    dp.add_handler(MessageHandler(Filters.location, loc))
-    dp.add_handler(MessageHandler(Filters.text & ~Filters.command, handle))
+    print(f"STARTING SATYA FINAL - {get_date()}")
+    app = Application.builder().token(BOT_TOKEN).build()
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(MessageHandler(filters.LOCATION, loc))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle))
     print("RUNNING - WILL REPLY!")
-    updater.start_polling()
-    updater.idle()
+    app.run_polling()
 
 if __name__ == "__main__":
     main()
