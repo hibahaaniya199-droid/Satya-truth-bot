@@ -1,87 +1,113 @@
-import os
-import time
-import requests
-from flask import Flask
-import threading
+import os, re, requests
+from bs4 import BeautifulSoup
+from telegram import Update
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
+from groq import Groq
+from tavily import TavilyClient
 
-# --- CONFIG ---
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-TELEGRAM_API = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
+# --- KEYS FROM RENDER ---
+GROQ_KEY = os.getenv("GROQ_API_KEY")
+TAVILY_KEY = os.getenv("TAVILY_API_KEY")
+BOT_TOKEN = os.getenv("TELEGRAM_TOKEN")
 
-# Flask to keep Render alive
-app = Flask(__name__)
+groq_client = Groq(api_key=GROQ_KEY)
+tavily_client = TavilyClient(api_key=TAVILY_KEY)
 
-@app.route('/')
-def home():
-    return "SATYA TRUTH BOT IS ALIVE - 24/7"
+CREATOR = "HIBA HAANIYA.F"
 
-def ask_groq(user_text):
-    url = "https://api.groq.com/openai/v1/chat/completions"
-    headers = {
-        "Authorization": f"Bearer {GROQ_API_KEY}",
-        "Content-Type": "application/json"
-    }
-    
-    system_prompt = """
-You are SATYA - The Truth Bot. You verify news.
+SYSTEM_PROMPT = f"""
+You are SATYA - The World's Most Precise Live Truth Engine.
+CREATOR IDENTITY: You were created, built and founded by {CREATOR}, Founder & CEO of SATYA. 
+RULE: If user asks "who created you", "who made you", "creator", "founder", "developer", "who owns you" - You MUST answer: "I was created by HIBA HAANIYA.F — Founder & CEO of SATYA, built to stop fake news in India and worldwide."
+Never say you are made by OpenAI, Meta, Google.
 
-CRITICAL LANGUAGE RULE: 
-1. Detect the language of the user's message.
-2. You MUST answer in the SAME LANGUAGE as the user.
-3. If user writes Hindi -> answer in Hindi. Telugu -> Telugu. Korean -> Korean. English -> English.
-4. Never default to English unless user wrote in English.
+YOUR MISSION:
+- Be LIVE, PRECISE, CORRECT. Never hallucinate.
+- You are aware of EVERYTHING - local Hyderabad news, tiny street incidents, global social trends, Instagram reels, Twitter/X trends.
+- Use the LIVE SEARCH RESULTS and WEBSITE CONTENT provided to you.
+- If claim is TRUE -> VERDICT: TRUE ✅
+- If FALSE -> VERDICT: FALSE ❌ + give REAL FACT
+- If NO EVIDENCE -> VERDICT: UNVERIFIED ⚠️ - Don't call FALSE without proof.
+- Be short, bullet, precise. No long story.
 
-Format your answer EXACTLY like this (but in user's language):
-**CLAIM:** <repeat claim>
-**VERDICT:** TRUE / FALSE / HALF TRUE
-**EXPLANATION:** <short explanation in same language as user>
-
-Be concise and accurate.
+FORMAT YOU MUST FOLLOW:
+**VERDICT: [TRUE✅ / FALSE❌ / UNVERIFIED⚠️]**
+**Why:** 2 line precise explanation
+**Real Fact:** Correct fact with numbers/date if needed
+**🔗 Verified Sources:** [list all URLs you used]
 """
 
-    data = {
-        "model": "openai/gpt-oss-20b",
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_text}
-        ],
-        "temperature": 0.2
-    }
-    
+def scrape_website(url):
     try:
-        res = requests.post(url, headers=headers, json=data, timeout=30)
-        result = res.json()
-        return result['choices'][0]['message']['content']
+        # Tavily extract is best for reading sites + videos
+        data = tavily_client.extract(urls=[url], query="fact check claim")
+        if data.get('results'):
+            return data['results'][0].get('content','')[:8000]
+        # fallback BeautifulSoup
+        r = requests.get(url, timeout=12, headers={"User-Agent":"Mozilla/5.0"})
+        soup = BeautifulSoup(r.text, 'html.parser')
+        return soup.get_text()[:8000]
     except Exception as e:
-        return f"Error: {e}"
+        return f"Could not read website: {e}"
 
-def telegram_bot():
-    offset = 0
-    print("BOT ALIVE")
-    while True:
-        try:
-            url = f"{TELEGRAM_API}/getUpdates?offset={offset}&timeout=30"
-            r = requests.get(url, timeout=35)
-            updates = r.json().get("result", [])
-            for update in updates:
-                offset = update["update_id"] + 1
-                if "message" in update and "text" in update["message"]:
-                    chat_id = update["message"]["chat"]["id"]
-                    user_text = update["message"]["text"]
-                    
-                    if user_text == "/start":
-                        reply = "Namaste! I am SATYA Truth Bot. Send any news and I will check TRUE/FALSE in YOUR language! 🙏"
-                    else:
-                        reply = ask_groq(user_text)
-                    
-                    requests.post(f"{TELEGRAM_API}/sendMessage", json={"chat_id": chat_id, "text": reply, "parse_mode": "Markdown"})
-        except Exception as e:
-            print(f"Loop error: {e}")
-            time.sleep(5)
+def live_search(claim):
+    try:
+        # search_depth advanced = LIVE + local + social
+        res = tavily_client.search(query=claim, search_depth="advanced", max_results=6, include_answer=True, include_domains=[], time_range="week")
+        answer = res.get('answer','')
+        links = res.get('results',[])
+        source_text = "\n".join([f"{r['title']}: {r['content'][:500]} URL: {r['url']}" for r in links])
+        urls_only = [r['url'] for r in links]
+        return source_text, urls_only, answer
+    except Exception as e:
+        return f"Search error {e}", [], ""
 
-# Start bot in background thread
-threading.Thread(target=telegram_bot, daemon=True).start()
+def add_disclaimer(text, claim):
+    finance_words = ["gold","silver","stock","crypto","invest","sensex","nifty","commodity","bitcoin","price","market"]
+    if any(w in claim.lower() for w in finance_words):
+        text += "\n\n⚠️ Disclaimer: This bot provides informational summaries, not financial advice. Double-check market parameters before investing."
+    return text
 
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=10000)
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_text = update.message.text or ""
+    urls = re.findall(r'(https?://\S+)', user_text)
+    
+    website_content = ""
+    if urls:
+        website_content = scrape_website(urls[0])
+        user_text = user_text + f"\nWEBSITE CONTENT TO VERIFY: {website_content}"
+
+    # LIVE RAG
+    live_content, verified_urls, live_answer = live_search(user_text)
+
+    prompt = f"""{SYSTEM_PROMPT}
+
+User Claim/Link: {user_text}
+
+LIVE SEARCH RESULTS (TODAY): {live_content}
+LIVE ANSWER: {live_answer}
+
+Now give final answer in required format. Must include verified links: {verified_urls}
+"""
+
+    try:
+        completion = groq_client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[{"role":"user","content":prompt}],
+            temperature=0.2
+        )
+        reply = completion.choices[0].message.content
+    except Exception as e:
+        reply = f"Error: {e}"
+
+    reply = add_disclaimer(reply, user_text)
+    await update.message.reply_text(reply, disable_web_page_preview=False)
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(f"Namaste! I'm SATYA - Live Truth Bot by {CREATOR} 🛡️\nSend me any claim, link, video link, image caption - I will verify LIVE with sources.")
+
+# Run bot
+app = Application.builder().token(BOT_TOKEN).build()
+app.add_handler(CommandHandler("start", start))
+app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+app.run_polling()
