@@ -1,2 +1,6 @@
+python-telegram-bot==20.7
+groq
+tavily-python
+beautifulsoup4
 requests
-flask
+lxml
