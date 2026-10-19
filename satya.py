@@ -37,7 +37,19 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     try:
         completion = groq_client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            # Groq models that ACTUALLY work in 2026
+GROQ_MODELS = [
+    "openai/gpt-oss-20b",          # FREE, fastest, always works
+    "openai/gpt-oss-120b",         # FREE, smarter
+    "llama-3.1-70b-versatile",     # backup
+    "meta-llama/llama-4-scout-17b-16e-instruct", # new Llama 4
+    "llama-3.3-70b-versatile"      # try last
+]
+
+# Then in your groq call, use:
+# Change line from: model="llama-..."
+# To:
+model="openai/gpt-oss-20b"
             messages=[{"role": "user", "content": prompt}],
             temperature=0.2
         )
