@@ -21,9 +21,8 @@ def get_weather(lat, lon):
     try:
         url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m,relative_humidity_2m,wind_speed_10m&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto&forecast_days=3"
         r = requests.get(url, timeout=8).json()
-        cur = r.get('current',{})
-        daily = r.get('daily',{})
-        return f"Now {cur.get('temperature_2m')}C Hum {cur.get('relative_humidity_2m')}% Tomorrow {daily.get('temperature_2m_min',[0])[0]}-{daily.get('temperature_2m_max',[0])[0]}C Rain {daily.get('precipitation_probability_max',[0])[0]}%"
+        cur = r.get('current',{}); daily = r.get('daily',{})
+        return f"Now {cur.get('temperature_2m')}C, Tomorrow {daily.get('temperature_2m_min',[0])[0]}-{daily.get('temperature_2m_max',[0])[0]}C Rain {daily.get('precipitation_probability_max',[0])[0]}%"
     except: return "Weather error"
 
 def extract_link(url):
@@ -43,19 +42,26 @@ PROMPT = "You are SATYA by HIBA HAANIYA.F Founder CEO. Date " + get_date() + ". 
 
 def ask_groq(q):
     if not groq_client: return None
-    # FIXED MODELS - 100% working on Groq now
-    for model in ["llama-3.1-8b-instant", "llama-3.1-70b-versatile", "mixtral-8x7b-32768"]:
+    # NEW 2026 MODELS - These work NOW!
+    models = [
+        "openai/gpt-oss-20b",
+        "openai/gpt-oss-120b", 
+        "llama-3.3-70b-versatile",
+        "llama-3.1-8b-instant",
+        "meta-llama/llama-4-scout-17b-16e-instruct"
+    ]
+    for m in models:
         try:
-            c = groq_client.chat.completions.create(model=model, messages=[{"role":"system","content":PROMPT},{"role":"user","content":q}], temperature=0.2, max_tokens=700)
-            print(f"SUCCESS model {model}")
+            c = groq_client.chat.completions.create(model=m, messages=[{"role":"system","content":PROMPT},{"role":"user","content":q}], temperature=0.2, max_tokens=700)
+            print(f"SUCCESS model {m}")
             return c.choices[0].message.content
         except Exception as e:
-            print(f"FAIL {model} {e}")
+            print(f"FAIL {m} {e}")
             continue
     return None
 
 async def start(update, context):
-    await update.message.reply_text(f"⚡ SATYA PERFECT FIXED! 🛡️\n👑 HIBA HAANIYA.F Founder & CEO 💖\n📅 {get_date()}\n🔗 Any link + 🌦️ Forecast + 🧠 Anything TRUE/FALSE!")
+    await update.message.reply_text(f"⚡ SATYA PERFECT 2026 FIXED! 🛡️\n👑 HIBA HAANIYA.F Founder & CEO 💖\n📅 {get_date()}")
 
 async def loc(update, context):
     lat = update.message.location.latitude; lon = update.message.location.longitude
@@ -77,7 +83,7 @@ async def handle(update, context):
         ans = ask_groq(f"Weather {get_weather(lat,lon)} Q {txt}")
         await update.message.reply_text(ans or get_weather(lat,lon))
         return
-    wait = await update.message.reply_text("⚡ SATYA scanning... 🔍")
+    wait = await update.message.reply_text("⚡ SATYA 2026 scanning... 🔍")
     urls = re.findall(r'https?://\S+', txt)
     link_data = extract_link(urls[0]) if urls else ""
     search_data = ""
@@ -89,10 +95,10 @@ async def handle(update, context):
     ans = ask_groq(f"Q:{txt} Link:{link_data[:2500]} Search:{search_data[:1500]}")
     try: await wait.delete()
     except: pass
-    await update.message.reply_text(ans or "Retrying... — SATYA by HIBA HAANIYA.F 🛡️")
+    await update.message.reply_text(ans or "Groq retrying... new models — SATYA by HIBA HAANIYA.F 🛡️")
 
 def main():
-    print(f"STARTING PERFECT FIXED {get_date()}")
+    print(f"STARTING PERFECT 2026 {get_date()}")
     app = Application.builder().token(BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.LOCATION, loc))
