@@ -1,5 +1,6 @@
-python-telegram-bot==20.8
+python-telegram-bot==21.7
 groq
 requests
-python-dotenv
+pytz
 tzdata
+python-dotenv
