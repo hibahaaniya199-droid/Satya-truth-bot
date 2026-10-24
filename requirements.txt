@@ -1,6 +1,7 @@
 python-telegram-bot==21.7
-groq
+groq==0.13.0
 requests
 pytz
 tzdata
 python-dotenv
+httpx
