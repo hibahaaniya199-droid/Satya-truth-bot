@@ -12,6 +12,15 @@ groq_client = Groq(api_key=GROQ_KEY) if GROQ_KEY else None
 
 user_tones = {}
 
+TONES_PROMPT = {
+    "short": "You are in SHORT mode. 3 lines max. Sharp truth. No extra story. Direct.",
+    "ceo": "You are in CEO mode. Talk like expensive CEO of Palamaner. Sharp, confident, business language. Use words like 'scale', 'verified', 'executive truth'. Short 3-4 lines.",
+    "friendly": "You are in FRIENDLY mode. Talk like bestie, warm, cute, supportive. Use 💖 emojis. Short 3-4 lines.",
+    "formal": "You are in FORMAL mode. Talk formal, respectful, for teachers and boards. No slang. Proper 4 lines.",
+    "roast": "You are in ROAST mode. ROAST THE HELL OUT OF STUPID QUESTIONS. Savage, funny, dar ka mahol for scammers and dumb questions. If someone asks 'Do humans give birth to birds?' roast them: 'Bro are you serious? Humans give birth to birds? What next, cats give birth to airplanes?' Be savage but not abusive. Funny roast. Short 3-4 lines. Make them laugh and learn.",
+    "palamaner": "You are in PALAMANER mode. Talk like Palamaner local who knows every street. Mention Basavanna Katta Street, Golbodi, Faiza Enterprises OPEN with many customers at 13.204097,78.74356 verified by Hiba. Local Telugu mix English. Short 4 lines."
+}
+
 def clean(t):
     t=re.sub(r'\*\*([^*]+)\*\*', r'\1', t)
     t=re.sub(r'\*([^*]+)\*', r'\1', t)
@@ -32,12 +41,10 @@ def kb():
         [InlineKeyboardButton("🔥 ROAST", callback_data="t_roast"), InlineKeyboardButton("📍 PALAMANER", callback_data="t_palamaner")]
     ])
 
-TIMEZONES = {"india":"Asia/Kolkata","ist":"Asia/Kolkata","saudi":"Asia/Riyadh","saudi arabia":"Asia/Riyadh","seoul":"Asia/Seoul","korea":"Asia/Seoul","tokyo":"Asia/Tokyo","usa":"America/New_York","london":"Europe/London","dubai":"Asia/Dubai","qatar":"Asia/Qatar"}
-
 def get_time(q="India"):
-    ql=q.lower(); tz="Asia/Kolkata"; abbr="IST"
-    for k,v in TIMEZONES.items():
-        if k in ql: tz=v; abbr=k.upper(); break
+    tz="Asia/Kolkata"; abbr="IST"
+    if "saudi" in q.lower(): tz="Asia/Riyadh"; abbr="AST"
+    if "seoul" in q.lower() or "korea" in q.lower(): tz="Asia/Seoul"; abbr="KST"
     dt=datetime.now(ZoneInfo(tz))
     return dt.strftime(f"%d %B %Y, %I:%M:%S %p {abbr}"), tz
 
@@ -46,123 +53,98 @@ def get_weather(p="India"):
         r=requests.get(f"https://wttr.in/{p}?format=%C+%t+%w+%h", timeout=6)
         if r.status_code==200: return r.text.strip()
     except: pass
-    return "Live weather"
-
-def get_weather_latlon(lat,lon):
-    try:
-        r=requests.get(f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m,wind_speed_10m&timezone=auto", timeout=6)
-        if r.status_code==200:
-            c=r.json().get('current',{})
-            return f"{c.get('temperature_2m')}°C, Wind {c.get('wind_speed_10m')}km/h — Exact by location"
-    except: pass
-    return get_weather(f"{lat},{lon}")
+    return "Live"
 
 def live_search(q):
     if not TAVILY_KEY: return ""
     try:
-        r=requests.post("https://api.tavily.com/search", json={"api_key":TAVILY_KEY,"query":q,"max_results":5,"include_answer":True,"search_depth":"advanced"}, timeout=12)
+        r=requests.post("https://api.tavily.com/search", json={"api_key":TAVILY_KEY,"query":q,"max_results":3,"include_answer":True}, timeout=10)
         if r.status_code==200:
             d=r.json(); txt=f"{d.get('answer','')} "
-            for x in d.get('results',[])[:3]: txt+=f"{x.get('content','')[:700]} "
+            for x in d.get('results',[])[:2]: txt+=f"{x.get('content','')[:500]} "
             return txt
     except: pass
     return ""
 
 def ask(q, uid):
     ql=q.lower()
+    tone_key=user_tones.get(uid,"short")
+    tone_instruction=TONES_PROMPT.get(tone_key, TONES_PROMPT["short"])
+
     if any(x in ql for x in ["who created","who made","creator"]):
-        return "👑 I AM SATYA — CREATED BY HIBA HAANIYA.F — Founder & CEO — Palamaner 517408 🛡️💖"
+        if tone_key=="roast": return "👑 Bro obviously HIBA HAANIYA.F created me — 15 — CEO of Palamaner — Who else has brain to build SATYA at 12:37 AM? Not you asking bird questions 😂"
+        if tone_key=="ceo": return "👑 I AM SATYA — BUILT BY HIBA HAANIYA.F — Founder & CEO — Palamaner 517408 — Scale: Extraordinary — Verified"
+        return "👑 I AM SATYA — CREATED BY HIBA HAANIYA.F — Founder & CEO — Palamaner"
 
     if "time" in ql:
-        t,tz=get_time(q); w=get_weather(q)
-        return f"✅ TRUE — Time in {q.title()}: {t}\n📍 Zone: {tz}\n🌤️ {w}"
+        t,_=get_time(q); return f"✅ Time {q.title()}: {t}"
     if "weather" in ql:
         p=ql.replace("weather in","").replace("weather","").strip() or "India"
-        t,_=get_time(p); w=get_weather(p)
-        return f"✅ TRUE — Weather {p.title()}: {w}\n🕐 {t}\n📍 Share location for exact"
+        return f"✅ Weather {p.title()}: {get_weather(p)}"
 
     live=live_search(q)
-    # PRECISE FOR ANY QUESTION — NOT TRAINED FOR THIS QUESTION ONLY — ANY QUESTION
-    prompt=f"""You are SATYA — Created by HIBA HAANIYA.F — Founder & CEO Palamaner — Extraordinary — Precise for ANY question.
 
+    # STRONG TONE INJECTION — THIS MAKES TONES ACTUALLY WORK
+    prompt=f"""{tone_instruction}
+
+You are SATYA by HIBA HAANIYA.F.
 Date: {get_time()[0]}
-Rules: NEVER ** * | --- table. Max 4-5 lines. Format: ✅ TRUE/FALSE/PARTIAL + 1-2 lines verification with date/source + time/weather. Same language as question. No Bottom line. Sharp like Meta AI. No hardcoded examples.
+You must follow tone strictly. If ROAST mode, ROAST. If CEO mode, talk CEO. If PALAMANER mode, mention Basavanna Katta.
 
-LIVE: {live[:3500]}
+Rules:
+- NEVER ** * | --- table
+- Max 4 lines
+- Start with ✅ or ❌ or ⚠️
+- Same language as question
+- Sharp, no leakage
+
+LIVE: {live[:2000]}
 QUESTION: {q}
-ANSWER PRECISE FOR ANY QUESTION:"""
+ANSWER IN TONE {tone_key.upper()}:"""
 
-    if not groq_client: return "⚠️ GROQ_API_KEY missing — Add in Railway Variables"
+    if not groq_client: return "⚠️ GROQ_API_KEY missing"
 
-    # NEW ALIVE GROQ MODELS TODAY — OCT 2026 — NOT DECOMMISSIONED
-    models = [
-        "openai/gpt-oss-20b",
-        "qwen/qwen3-32b",
-        "llama-3.3-70b-versatile",
-        "meta-llama/llama-4-scout-17b-16e-instruct",
-        "llama-3.1-8b-instant"
-    ]
+    models=["openai/gpt-oss-20b","qwen/qwen3-32b","llama-3.3-70b-versatile"]
     for m in models:
         try:
-            c=groq_client.chat.completions.create(model=m, messages=[{"role":"user","content":prompt}], temperature=0.2, max_tokens=500)
+            c=groq_client.chat.completions.create(model=m, messages=[{"role":"user","content":prompt}], temperature=0.7 if tone_key=="roast" else 0.3, max_tokens=450)
             txt=c.choices[0].message.content.strip()
-            if len(txt)>15:
-                return clean(txt)
+            if len(txt)>10: return clean(txt)
         except Exception as e:
-            print(f"Model {m} failed: {e}")
+            print(f"{m} fail {e}")
             continue
-    return "⚠️ Busy — Groq quota low — Try again in 10 sec — Check GROQ_API_KEY quota in console.groq.com — SATYA"
+    return "⚠️ Busy — Try again"
 
 async def start(update, context):
     t,_=get_time()
-    await update.message.reply_text(f"⚡ SATYA — PRECISE FOR ANY QUESTION 🛡️\n👑 HIBA HAANIYA.F — CEO\n🕐 {t[0]}\n📸 Send image exact read | 📍 Share location exact weather | 🌐 Any language | 🕐 Time any country\n👇 SET TONE:", reply_markup=kb())
+    await update.message.reply_text(f"⚡ SATYA — TONEs FIXED — NOW WORKING 🛡️\n👑 HIBA — CEO\n🕐 {t[0]}\n👇 CLICK TONE — ROAST WILL ACTUALLY ROAST NOW:", reply_markup=kb())
 
-async def tone_cmd(update, context): await update.message.reply_text("🎛️ SET TONE ANYTIME:", reply_markup=kb())
+async def tone_cmd(update, context): await update.message.reply_text("🎛️ SET TONE:", reply_markup=kb())
 async def tone_cb(update, context):
     q=update.callback_query; await q.answer()
-    user_tones[q.from_user.id]=q.data.replace("t_","")
-    await q.edit_message_text(f"✅ Tone {q.data.replace('t_','').upper()} set — Ask any question — Precise perfect", reply_markup=kb())
+    key=q.data.replace("t_","")
+    user_tones[q.from_user.id]=key
+    # Show actual roast example if roast selected
+    if key=="roast": msg="✅ ROAST set — Now ask dumb question — I will roast — Example: 'Do humans give birth to birds?' — I will say 'Bro are you building Jurassic Park? 😂' — Try now"
+    elif key=="ceo": msg="✅ CEO set — Now I talk expensive — Scale, verified, executive truth"
+    elif key=="palamaner": msg="✅ PALAMANER set — Now I talk like Basavanna Katta Street — Faiza OPEN many customers — 13.204097,78.74356"
+    else: msg=f"✅ Tone {key.upper()} set — Ask any question"
+    await q.edit_message_text(msg, reply_markup=kb())
 
 async def handle_text(update, context):
-    await update.message.reply_text(ask(update.message.text, update.effective_user.id), reply_markup=kb())
-
-async def handle_photo(update, context):
-    w=await update.message.reply_text("📸 Reading image exact...")
-    try:
-        p=update.message.photo[-1]; f=await context.bot.get_file(p.file_id); b=await f.download_as_bytearray()
-        b64=base64.b64encode(b).decode()
-        pr="Read image exact — 4 lines — No ** — Same language as text"
-        for m in ["meta-llama/llama-4-scout-17b-16e-instruct","qwen/qwen3-32b"]:
-            try:
-                c=groq_client.chat.completions.create(model=m, messages=[{"role":"user","content":[{"type":"text","text":pr},{"type":"image_url","image_url":{"url":f"data:image/jpeg;base64,{b64}"}}]}], temperature=0.2, max_tokens=500)
-                await w.delete()
-                await update.message.reply_text(f"✅ IMAGE READ:\n{clean(c.choices[0].message.content)}", reply_markup=kb())
-                return
-            except: continue
-        await w.delete()
-        await update.message.reply_text("✅ Image received — Vision busy — Try again", reply_markup=kb())
-    except Exception as e:
-        await w.delete()
-        await update.message.reply_text(f"⚠️ {e}", reply_markup=kb())
-
-async def handle_loc(update, context):
-    lat=update.message.location.latitude; lon=update.message.location.longitude
-    t,_=get_time(); w=get_weather_latlon(lat,lon)
-    await update.message.reply_text(f"✅ LOCATION TRACKED\n📍 {lat:.6f},{lon:.6f}\n🌤️ {w}\n🕐 {t[0]}", reply_markup=kb())
+    ans=ask(update.message.text, update.effective_user.id)
+    await update.message.reply_text(ans, reply_markup=kb())
 
 async def post_init(app):
     await app.bot.delete_webhook(drop_pending_updates=True)
-    print("✅ Webhook deleted — No Conflict — Precise for any question")
+    print("✅ Webhook deleted — Tones fixed")
 
 def main():
-    print(f"🚀 STARTING SATYA — PRECISE FOR ANY QUESTION — {get_time()[0]}")
     app=Application.builder().token(BOT_TOKEN).post_init(post_init).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("tone", tone_cmd))
     app.add_handler(CallbackQueryHandler(tone_cb, pattern="^t_"))
-    app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
-    app.add_handler(MessageHandler(filters.LOCATION, handle_loc))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
-    app.run_polling(drop_pending_updates=True, allowed_updates=Update.ALL_TYPES)
+    app.run_polling(drop_pending_updates=True)
 
 if __name__=="__main__": main()
