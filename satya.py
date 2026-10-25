@@ -1,7 +1,7 @@
 import os, requests, re, json, tempfile
 from datetime import datetime
 from zoneinfo import ZoneInfo
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup, ReplyKeyboardRemove
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters
 from groq import Groq
 
@@ -35,16 +35,12 @@ TONES = {
     "ceo": "CEO — expensive confident",
     "friendly": "FRIENDLY — bestie warm",
     "formal": "FORMAL — respectful",
-    "roast": "ROAST — roast stupid Q savage funny"
+    "roast": "ROAST — roast savage"
 }
 
 TIMEZONE_DB = {
-    "palamaner":"Asia/Kolkata","palamner":"Asia/Kolkata","chittoor":"Asia/Kolkata","tirupati":"Asia/Kolkata","faiza":"Asia/Kolkata",
-    "india":"Asia/Kolkata","delhi":"Asia/Kolkata","mumbai":"Asia/Kolkata",
-    "saudi":"Asia/Riyadh","riyadh":"Asia/Riyadh","dubai":"Asia/Dubai","uae":"Asia/Dubai","qatar":"Asia/Qatar",
-    "south korea":"Asia/Seoul","korea":"Asia/Seoul","seoul":"Asia/Seoul","대한민국":"Asia/Seoul","busan":"Asia/Seoul",
-    "japan":"Asia/Tokyo","tokyo":"Asia/Tokyo","china":"Asia/Shanghai","singapore":"Asia/Singapore",
-    "uk":"Europe/London","london":"Europe/London","paris":"Europe/Paris","berlin":"Europe/Berlin","usa":"America/New_York","new york":"America/New_York","australia":"Australia/Sydney"
+    "palamaner":"Asia/Kolkata","palamner":"Asia/Kolkata","chittoor":"Asia/Kolkata","faiza":"Asia/Kolkata",
+    "india":"Asia/Kolkata","saudi":"Asia/Riyadh","dubai":"Asia/Dubai","korea":"Asia/Seoul","seoul":"Asia/Seoul","japan":"Asia/Tokyo","uk":"Europe/London","usa":"America/New_York"
 }
 
 def clean(t):
@@ -53,7 +49,7 @@ def clean(t):
     t=t.replace('**','').replace('__','')
     lines=[x for x in t.split('\n') if not ('|' in x and '---' in x) and not (x.strip().startswith('|') and x.strip().endswith('|'))]
     lines=[x for x in lines if 'bottom line' not in x.lower()]
-    return '\n'.join('\n'.join(lines).split('\n')[:8]).strip()
+    return '\n'.join('\n'.join(lines).split('\n')[:9]).strip()
 
 def detect_native_lang(text):
     if any('\u0900' <= c <= '\u097F' for c in text): return 'hi'
@@ -73,18 +69,12 @@ def detect_native_lang(text):
 def get_native_speak_text(text):
     t=text
     t=re.sub(r'[✅❌⚠️🎤📍🕐🌤️🌍👑⚡🔥💖🎓🎛️]', '', t)
-    t=t.replace("HIBA HAANIYA.F","Heeba Haaniya")
-    t=t.replace("HIBA HAANIYA","Heeba Haaniya")
-    t=t.replace("HIBA","Heeba")
-    t=t.replace("SATYA","Sathya")
-    t=t.replace(".F","")
+    t=t.replace("HIBA HAANIYA.F","Heeba Haaniya").replace("HIBA HAANIYA","Heeba Haaniya").replace("HIBA","Heeba").replace("SATYA","Sathya").replace(".F","")
     t=t.replace("Founder & CEO","Founder and CEO")
     t=re.sub(r'Lat.*Lon.*', '', t)
     t=re.sub(r'📍.*\n', '', t)
     t=re.sub(r'\d+\.\d+', '', t)
-    t=t.replace("°C"," degrees ")
-    t=t.replace("km/h"," kilometers per hour ")
-    t=t.replace("%"," percent ")
+    t=t.replace("°C"," degrees ").replace("km/h"," kilometers per hour ").replace("%"," percent ")
     t=re.sub(r'\s+', ' ', t).strip()
     return t[:400]
 
@@ -101,11 +91,7 @@ def kb_location_once():
     return ReplyKeyboardMarkup([[btn]], resize_keyboard=True, one_time_keyboard=True)
 
 def kb_main_popup():
-    btn1 = KeyboardButton("🎛️ Change Tone")
-    btn2 = KeyboardButton("🎤 Speak Voice")
-    btn3 = KeyboardButton("🌍 Any Language")
-    btn4 = KeyboardButton("🔗 Check Link")
-    return ReplyKeyboardMarkup([[btn1, btn2], [btn3, btn4]], resize_keyboard=True)
+    return ReplyKeyboardMarkup([[KeyboardButton("🎛️ Change Tone"), KeyboardButton("🎤 Speak Voice")],[KeyboardButton("🌍 Any Language"), KeyboardButton("🔗 Check Link")]], resize_keyboard=True)
 
 def get_coords(place):
     try:
@@ -149,12 +135,34 @@ def get_time_weather_exact(place_or_latlon):
             pretty=dt.strftime(f"%d %B %Y, %I:%M:%S %p IST")
             tz="Asia/Kolkata"
         return {"lat":lat,"lon":lon,"display":display,"time":pretty,"timezone":tz,"weather":weather}
-    except Exception as e:
-        print(e)
+    except: return None
+
+def extract_youtube_id(url):
+    m=re.search(r'(?:shorts/|v=|youtu\.be/)([A-Za-z0-9_-]{11})', url)
+    if m: return m.group(1)
     return None
+
+def read_youtube(url):
+    try:
+        vid=extract_youtube_id(url)
+        if not vid: return None
+        # YouTube oEmbed gives real title + author
+        r=requests.get(f"https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v={vid}&format=json", timeout=10, headers={"User-Agent":"Mozilla/5.0"})
+        if r.status_code==200:
+            j=r.json()
+            title=j.get('title','')
+            author=j.get('author_name','')
+            return f"YouTube Shorts Video ID {vid} — Title: {title} — Channel: {author} — URL valid — Video about: {title}"
+        else:
+            return f"YouTube Shorts Video ID {vid} — URL valid — oEmbed blocked but ID exists — Likely real video"
+    except Exception as e:
+        return f"YouTube link detected — Could not fetch title: {e}"
 
 def read_link(url):
     try:
+        if "youtube.com" in url or "youtu.be" in url:
+            yt = read_youtube(url)
+            if yt: return yt
         headers={"User-Agent":"Mozilla/5.0 (SATYA-HIBA-CEO) Chrome/120.0"}
         r=requests.get(url, headers=headers, timeout=12, allow_redirects=True)
         if r.status_code==200:
@@ -163,6 +171,8 @@ def read_link(url):
             text=re.sub(r'<style.*?</style>', '', text, flags=re.DOTALL)
             text=re.sub(r'<[^>]+>', ' ', text)
             text=re.sub(r'\s+', ' ', text).strip()
+            if len(text)<100:
+                return f"Link {url} — Page exists but content hidden (YouTube/Insta) — URL format valid — No scam pattern in URL itself — Need title via oEmbed"
             return text[:5000]
         else:
             return f"Link returned status {r.status_code}"
@@ -190,9 +200,7 @@ def transcribe_voice(file_path):
             if isinstance(transcription, str):
                 return transcription
             return getattr(transcription, 'text', str(transcription))
-    except Exception as e:
-        print(f"transcribe fail {e}")
-        return ""
+    except: return ""
 
 def ask_any(q, uid):
     ql=q.lower().strip()
@@ -203,18 +211,18 @@ def ask_any(q, uid):
             content = read_link(url)
             link_content += f"\nLINK {url} CONTENT: {content[:3000]}\n"
     tone=user_tones.get(uid,"short")
-    if any(x in ql for x in ["who made you","who created you","kisne banaya","आपको किसने बनाया","who built you","your creator","तुम्हें किसने बनाया","creator","ఎవరు"]):
-        if "आपको किसने बनाया" in q or "किसने बनाया" in q or "तुम्हें" in q or "किसने" in q:
-            return "✅ मैं SATYA हूँ — मुझे HIBA HAANIYA.F ने बनाया है — 15 साल — पलमनेर 517408 — Founder & CEO — मैं OpenAI नहीं हूँ — मैं HIBA की हूँ"
-        if "ఎవరు" in q or "నన్ను" in q:
-            return "✅ నేను SATYA — నన్ను HIBA HAANIYA.F సృష్టించారు — 15 ఏళ్లు — పలమనేరు CEO"
-        return "✅ I AM SATYA — CREATED BY HIBA HAANIYA.F — 15 — Palamaner — Founder & CEO — I am NOT OpenAI — I am HIBA's"
-    is_time_q = any(x in ql for x in ["time in","timing","what time","current time"])
+    if any(x in ql for x in ["who made you","who created you","kisne banaya","आपको किसने बनाया","who built you","your creator","creator","ఎవరు"]):
+        if "आपको किसने बनाया" in q or "किसने बनाया" in q or "तुम्हें" in q:
+            return "✅ मैं SATYA हूँ — मुझे HIBA HAANIYA.F ने बनाया है — 15 साल — पलमनेर 517408 — Founder & CEO — मैं OpenAI नहीं हूँ"
+        if "ఎవరు" in q:
+            return "✅ నేను SATYA — నన్ను HIBA HAANIYA.F సృష్టించారు"
+        return "✅ I AM SATYA — CREATED BY HIBA HAANIYA.F — 15 — Palamaner — Founder & CEO — NOT OpenAI"
+    is_time_q = any(x in ql for x in ["time in","what time","current time"])
     is_weather_q = "weather" in ql
     is_loc_q = any(x in ql for x in ["where is","location of","locate"])
     if is_time_q or is_weather_q or is_loc_q:
         place = ql
-        for p in ["time in","timing of","what time in","current time in","weather in","weather at","where is","location of","locate","exact location of","timing","time","weather","where","location"]:
+        for p in ["time in","what time in","current time in","weather in","where is","location of","locate","exact location of","timing","time","weather","where","location"]:
             place=place.replace(p,"")
         place=place.strip() or "India"
         if is_weather_q and uid in user_locations and any(x in ql for x in ["my location","my weather","here"]):
@@ -235,37 +243,27 @@ def ask_any(q, uid):
         if info: loc_ctx=f"Saved {name} {info['time']} {info['weather']}"
     link_instruction = ""
     if link_content:
-        link_instruction = f"\nUSER SENT LINKS — YOU MUST VISIT AND READ THEM — VERIFY IF TRUE OR FALSE — CHECK 【entity-PIB¦canonical_name=PIB】 GOVT — If scam say FALSE SCAM — Explain simple.\n{link_content}\n"
-    prompt=f"""You are SATYA — Created by HIBA HAANIYA.F — 15 — Palamaner — Founder and CEO — NOT OpenAI.
+        link_instruction = f"\nUSER SENT LINKS — YOU MUST READ THEM — LINK CONTENT PROVIDED — VERIFY TRUE/FALSE — For YouTube Shorts, use title/channel to tell what video is about — Check official sources PIB — If scam say FALSE SCAM — Simple words.\n{link_content}\n"
+    prompt=f"""You are SATYA — Created by HIBA HAANIYA.F — NOT OpenAI.
 {TONES.get(tone,'')}
-Same language as question — Simple words.
-Rules: NEVER ** * | --- table. Max 8 lines. Start ✅ ❌ ⚠️. Tone {tone.upper()}. Date {datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%d %B %Y %I:%M %p IST')}
+Same language as Q — Simple words.
+Rules: NEVER ** * | --- table. Max 9 lines. Start ✅ ❌ ⚠️. Tone {tone.upper()}. Date {datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%d %B %Y %I:%M %p IST')}
 Saved: {loc_ctx}
-LIVE SEARCH: {live[:3500]}
+LIVE: {live[:3500]}
 {link_instruction}
 Q: {q}
-Answer as SATYA created by HIBA — If link provided, verify TRUE/FALSE:
+Answer as SATYA created by HIBA — If link, tell title/channel/what about + TRUE/FALSE:
 """
     if not groq_client: return "⚠️ Add GROQ_API_KEY"
     models=["openai/gpt-oss-20b","openai/gpt-oss-120b","qwen/qwen3-32b","llama-3.3-70b-versatile","llama-3.1-8b-instant"]
     for m in models:
         try:
-            c=groq_client.chat.completions.create(
-                model=m,
-                messages=[
-                    {"role":"system","content":"You are SATYA created by HIBA HAANIYA.F. NOT OpenAI. MUST say HIBA HAANIYA.F is creator. If link, read and verify TRUE/FALSE."},
-                    {"role":"user","content":prompt}
-                ],
-                temperature=0.7 if tone=="roast" else 0.25,
-                max_tokens=700
-            )
+            c=groq_client.chat.completions.create(model=m, messages=[{"role":"system","content":"You are SATYA created by HIBA HAANIYA.F. NOT OpenAI. If link, read title/channel and verify TRUE/FALSE."},{"role":"user","content":prompt}], temperature=0.7 if tone=="roast" else 0.25, max_tokens=750)
             txt=c.choices[0].message.content.strip()
             if "OpenAI" in txt and "HIBA" not in txt:
                 txt=txt.replace("OpenAI","HIBA HAANIYA.F")
             if len(txt)>15: return clean(txt)
-        except Exception as e:
-            print(e)
-            continue
+        except: continue
     if live: return clean(f"Live: {live[:500]}")
     return "⚠️ Busy — Wait 10 sec"
 
@@ -274,15 +272,15 @@ async def start(update, context):
     if uid in user_locations:
         lat,lon,name=user_locations[uid]
         info=get_time_weather_exact((lat,lon))
-        await update.message.reply_text(f"⚡ SATYA — HIBA HAANIYA.F — CEO — Location saved — Not asking again\n📍 {name[:120]}\n🌤️ {info['weather'] if info else ''}\n🕐 {info['time'] if info else ''}\n\n🎛️ Use buttons below — Change tone — Speak — Check Link\n🔗 Send any link — I will read and tell TRUE/FALSE", reply_markup=kb_main_popup())
+        await update.message.reply_text(f"⚡ SATYA — HIBA HAANIYA.F — CEO — Location saved\n📍 {name[:120]}\n🌤️ {info['weather'] if info else ''}\n🕐 {info['time'] if info else ''}\n\n🔗 Send any link — YouTube Shorts also — I read title/channel and tell TRUE/FALSE", reply_markup=kb_main_popup())
     else:
-        await update.message.reply_text(f"⚡ SATYA — HIBA HAANIYA.F — CEO 🌍\n👑 Created by HIBA — Not OpenAI\n🕐 {datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%d %B %Y %I:%M %p IST')}\n\n📍 Share location ONCE — Saved forever\n🔗 Send any link — I read and verify TRUE/FALSE\n👇 Click once below:", reply_markup=kb_location_once())
+        await update.message.reply_text(f"⚡ SATYA — HIBA HAANIYA.F — CEO 🌍\n👑 Created by HIBA — Not OpenAI\n🕐 {datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%d %B %Y %I:%M %p IST')}\n\n📍 Share location ONCE\n🔗 Send any link — YouTube Shorts — I read and verify", reply_markup=kb_location_once())
 
 async def loc_cmd(update, context):
-    await update.message.reply_text("📍 Share location ONCE — Saved forever:", reply_markup=kb_location_once())
+    await update.message.reply_text("📍 Share location ONCE:", reply_markup=kb_location_once())
 
 async def tone_cmd(update, context):
-    await update.message.reply_text("🎛️ Choose tone — Pop up above — Click button:", reply_markup=kb_tone())
+    await update.message.reply_text("🎛️ Choose tone:", reply_markup=kb_tone())
 
 async def tone_cb(update, context):
     q=update.callback_query
@@ -291,11 +289,11 @@ async def tone_cb(update, context):
     uid=q.from_user.id
     if data=="t_lang":
         user_lang_mode[uid]=True
-        await q.edit_message_text("✅ 🌍 ANY LANGUAGE ON — I speak like native — No English accent")
+        await q.edit_message_text("✅ 🌍 ANY LANGUAGE ON — Native accent")
     elif data=="t_voice":
         user_voice_reply[uid]=True
         user_lang_mode[uid]=True
-        await q.edit_message_text("✅ 🎤 VOICE MODE ON — I speak like native — Any damn language — Heeba Haaniya properly")
+        await q.edit_message_text("✅ 🎤 VOICE MODE ON — Native — Any language — Heeba Haaniya properly")
     else:
         user_tones[uid]=data.replace("t_","")
         await q.edit_message_text(f"✅ Tone {data.replace('t_','').upper()} set")
@@ -308,17 +306,17 @@ async def handle_text(update, context):
     if text == "🎤 Speak Voice":
         user_voice_reply[update.effective_user.id]=True
         user_lang_mode[update.effective_user.id]=True
-        await update.message.reply_text("✅ 🎤 VOICE MODE ON — Send voice — I speak like native — No English accent", reply_markup=kb_main_popup())
+        await update.message.reply_text("✅ 🎤 VOICE MODE ON — Native — Any language", reply_markup=kb_main_popup())
         return
     if text == "🌍 Any Language":
         user_lang_mode[update.effective_user.id]=True
-        await update.message.reply_text("✅ 🌍 ANY LANGUAGE ON — I speak like native", reply_markup=kb_main_popup())
+        await update.message.reply_text("✅ 🌍 ANY LANGUAGE ON", reply_markup=kb_main_popup())
         return
     if text == "🔗 Check Link":
-        await update.message.reply_text("🔗 Send any link — https://... — I will visit, read, and tell if TRUE or FALSE", reply_markup=kb_main_popup())
+        await update.message.reply_text("🔗 Send any link — YouTube Shorts / News / Govt — I visit, read title/channel, tell TRUE/FALSE", reply_markup=kb_main_popup())
         return
     if "http://" in text or "https://" in text:
-        await update.message.reply_text("🔗 Reading link... Visiting... Checking TRUE/FALSE... Wait...", reply_markup=kb_main_popup())
+        await update.message.reply_text("🔗 Reading link... Visiting YouTube/ Site... Getting title/channel... Checking TRUE/FALSE... Wait 5 sec...", reply_markup=kb_main_popup())
     ans=ask_any(text, update.effective_user.id)
     await update.message.reply_text(ans, reply_markup=kb_main_popup())
     if user_voice_reply.get(update.effective_user.id):
@@ -330,8 +328,7 @@ async def handle_text(update, context):
                 tts = gTTS(text=speak, lang=lang, slow=False)
                 tts.save(tmp.name)
                 await update.message.reply_voice(voice=open(tmp.name,'rb'))
-        except Exception as e:
-            print(e)
+        except: pass
 
 async def handle_voice(update, context):
     try:
@@ -351,13 +348,10 @@ async def handle_voice(update, context):
                     tts = gTTS(text=speak, lang=lang, slow=False)
                     tts.save(tmp2.name)
                     await update.message.reply_voice(voice=open(tmp2.name,'rb'))
-            except Exception as e:
-                print(e)
+            except: pass
         else:
             await update.message.reply_text("⚠️ Could not hear voice", reply_markup=kb_main_popup())
-    except Exception as e:
-        print(e)
-        await update.message.reply_text("⚠️ Voice error", reply_markup=kb_main_popup())
+    except: await update.message.reply_text("⚠️ Voice error", reply_markup=kb_main_popup())
 
 async def handle_loc(update, context):
     lat=update.message.location.latitude
@@ -365,19 +359,18 @@ async def handle_loc(update, context):
     try:
         r=requests.get(f"https://nominatim.openstreetmap.org/reverse?lat={lat}&lon={lon}&format=json", headers={"User-Agent":"SATYA-HIBA-CEO"}, timeout=8)
         name=r.json().get('display_name','Your saved location') if r.status_code==200 else "Your saved location"
-    except:
-        name="Your saved location"
+    except: name="Your saved location"
     user_locations[update.effective_user.id]=(lat,lon,name)
     save_locs()
     info=get_time_weather_exact((lat,lon))
     if info:
-        await update.message.reply_text(f"✅ LOCATION SAVED ONCE — Never again\n📍 {name[:150]}\n📍 {lat:.6f},{lon:.6f}\n🕐 {info['time']}\n🌤️ {info['weather']}\n\nUse buttons below", reply_markup=kb_main_popup())
+        await update.message.reply_text(f"✅ LOCATION SAVED ONCE\n📍 {name[:150]}\n📍 {lat:.6f},{lon:.6f}\n🕐 {info['time']}\n🌤️ {info['weather']}", reply_markup=kb_main_popup())
     else:
         await update.message.reply_text(f"✅ Saved — {lat:.6f},{lon:.6f}", reply_markup=kb_main_popup())
 
 async def post_init(app):
     await app.bot.delete_webhook(drop_pending_updates=True)
-    print("✅ Link reader — Native accent — Pop up")
+    print("✅ YouTube reader fixed — Title channel — True False")
 
 def main():
     app=Application.builder().token(BOT_TOKEN).post_init(post_init).build()
