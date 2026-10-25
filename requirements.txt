@@ -5,3 +5,4 @@ pytz
 tzdata
 python-dotenv
 httpx
+gTTs
