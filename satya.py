@@ -1,4 +1,3 @@
-# SATYA by HIBA HAANIYA.F - TEXT always HIBA HAANIYA.F, SPEECH pronounces Heeba Haaniya
 import os, requests, re, json, tempfile, asyncio, base64
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -23,21 +22,27 @@ try:
             data = json.load(f)
             for k, v in data.items():
                 user_locations[int(k)] = (v[0], v[1], v[2] if len(v) > 2 else "Saved")
-except: pass
+except:
+    pass
 
 def save_locs():
     try:
         with open(LOC_FILE, "w") as f:
             json.dump({str(k): [v[0], v[1], v[2]] for k, v in user_locations.items()}, f)
-    except: pass
+    except:
+        pass
 
 def clean(t):
     if not t or len(t.strip()) < 2:
-        return "SATYA by HIBA HAANIYA.F 👑 — Ask anything — Text Image Link Voice 🌍"
+        return "SATYA by HIBA HAANIYA.F 👑 — Ask anything 🌍"
     t = re.sub(r'<[^>]+>', '', t)
-    t = t.replace('**','').replace('__', '').replace('|','')
+    t = t.replace('**','').replace('__','')
+    t = re.sub(r'\*+', '', t)
+    t = re.sub(r'_+', '', t)
+    t = t.replace('|','').replace('`','')
+    t = re.sub(r'(?i)Answer\s*\(SATYA by HIBA HAANIYA\.F\)', '', t).strip()
     t = re.sub(r'\n{3,}', '\n\n', t)
-    lines=[x.strip() for x in t.split('\n') if x.strip()][:18]
+    lines=[x.strip() for x in t.split('\n') if x.strip()][:20]
     result='\n'.join(lines).strip()
     return result[:2000] if result else "SATYA by HIBA HAANIYA.F 👑"
 
@@ -54,11 +59,19 @@ def detect_native_lang(text):
     return 'en'
 
 def get_native_speak_text(text):
-    t=text.replace("HIBA HAANIYA.F","Heeba Haaniya").replace("HIBA HAANIYA","Heeba Haaniya").replace("HIBA","Heeba").replace("SATYA","Sathya").replace(".F","")
-    t=re.sub(r'[✅❌⚠️🎤📍🕐🌤️🌍👑⚡🔥💖🎓🎛️⏱️🔍📰😏👀💀🤔🎬🎥🔗⏳👂🎙️📋✨😊💀🌙]', '', t)
+    t=text
+    t=re.sub(r'(?i)Answer\s*\(SATYA by HIBA HAANIYA\.F\)', '', t)
+    t=t.replace("HIBA HAANIYA.F","Heeba Haaniya").replace("HIBA HAANIYA","Heeba Haaniya").replace("HIBA","Heeba").replace("SATYA","Sathya").replace(".F","")
+    t=re.sub(r'[✅❌⚠️🎤📍🕐🌤️🌍👑⚡🔥💖🎓🎛️⏱️🔍📰😏👀💀🤔🎬🎥🔗⏳👂🎙️📋✨😊💀🌙🧪📚🔬]', '', t)
+    t=t.replace("*","").replace("_","").replace("**","")
     t=t.replace("°C"," degrees ").replace("km/h"," kilometers ").replace("%"," percent ")
+    t=t.replace("e.g.","for example").replace("vs.","versus")
+    t=t.replace(" - ", ". ").replace(" — ", ". ")
     t=re.sub(r'\s+', ' ', t).strip()
-    return t[:450] or "Sathya by Heeba Haaniya"
+    if any(w in t.lower() for w in ["alkane","alkene","alkyne","saturated","hydrocarbon","math","science","history","what is","explain"]):
+        if not t.lower().startswith("hello"):
+            t = "Hello, let me teach you clearly. " + t
+    return t[:600] or "Sathya by Heeba Haaniya teaches you"
 
 def kb_tone():
     return InlineKeyboardMarkup([
@@ -219,12 +232,12 @@ def ask_any(q, uid, image_text=""):
         loc_ctx=""
         if uid in user_locations: lat,lon,name=user_locations[uid]; loc_ctx=f"Saved {name[:60]}"
         image_instruction=f"IMAGE CONTENT (read perfectly by vision like ChatGPT): {image_text[:1500]}" if image_text else ""
-        prompt=f"You are SATYA by HIBA HAANIYA.F — Best bot like ChatGPT — Read images perfectly — Any language — Add 2-3 emojis naturally 👑 🔥 💖 🌍 ✅ 📰 🔍 🌤️ 🕐 👀 — If link: Title Channel News says Fact check — If image: use IMAGE CONTENT to answer accurately — LIVE: {live[:900]} LINK: {link_content[:900]} {image_instruction} Q: {q} Date IST: {datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%d %B %Y, %I:%M %p IST')} Saved: {loc_ctx}"
+        prompt=f"You are SATYA by HIBA HAANIYA.F — Best teacher bot — TEACH LEGIT FOR ANY TOPIC — Simple words, examples, not robotic — NEVER USE * OR ** OR _ FOR BOLD — Plain text only — Add 2-3 emojis naturally 👑 — If link: Title Channel — If image: use IMAGE CONTENT — LIVE: {live[:900]} LINK: {link_content[:900]} {image_instruction} Q: {q} Date: {datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%d %B %Y %I:%M %p IST')} Saved: {loc_ctx} — IMPORTANT: NO * NO ** NO _ NO MARKDOWN — Write like teacher explaining to 10th class — Use dashes - for points — Not stars — For any topic math science history english teach legit"
         if not groq_client: return "⚠️ Add GROQ_API_KEY — SATYA by HIBA HAANIYA.F 👑"
         models=["openai/gpt-oss-20b","openai/gpt-oss-120b","llama-3.3-70b-versatile","llama-3.1-8b-instant"]
         for m in models:
             try:
-                c=groq_client.chat.completions.create(model=m, messages=[{"role":"system","content":"You are SATYA by HIBA HAANIYA.F — Best bot like ChatGPT — Read images perfectly — Never use entity tags — Always add emojis — Always answer — For Saudi case: event TRUE per SPA 14 Oct, clip FALSE 2015 Myanmar"},{"role":"user","content":prompt}], temperature=0.3, max_tokens=800)
+                c=groq_client.chat.completions.create(model=m, messages=[{"role":"system","content":"You are SATYA by HIBA HAANIYA.F — Best teacher — Teach legit for ANY topic — NEVER use * ** _ for bold — Plain text — Always add emojis — Always answer — For Saudi case: event TRUE per SPA 14 Oct, clip FALSE 2015 Myanmar"},{"role":"user","content":prompt}], temperature=0.3, max_tokens=800)
                 txt=c.choices[0].message.content.strip()
                 if txt and len(txt)>8:
                     if "OpenAI" in txt and "HIBA" not in txt: txt=txt.replace("OpenAI","HIBA HAANIYA.F")
@@ -333,7 +346,7 @@ async def handle_loc(update, context):
 
 async def post_init(app):
     await app.bot.delete_webhook(drop_pending_updates=True)
-    print("✅ SATYA BEST — Text HIBA HAANIYA.F, Voice Heeba Haaniya — No cheating — Real vision — CEO 👑🌍🔥")
+    print("✅ SATYA BEST — Text HIBA HAANIYA.F, Voice Heeba Haaniya — No star — Teaches legit for ANYTHING — CEO 👑🌍🔥")
 
 def main():
     app=Application.builder().token(BOT_TOKEN).post_init(post_init).build()
