@@ -183,7 +183,7 @@ def read_image_with_groq(file_path, extra_prompt=""):
     if not groq_client: return "No GROQ key"
     try:
         with open(file_path,"rb") as f: b64=base64.b64encode(f.read()).decode('utf-8')
-        models=["meta-llama/llama-4-maverick-17b-128e-instruct","meta-llama/llama-4-scout-17b-16e-instruct","llama-3.2-90b-vision-preview","llama-3.2-11b-vision-preview"]
+        models=["qwen/qwen3.6-27b","qwen/qwen3-32b","meta-llama/llama-4-maverick-17b-128e-instruct","meta-llama/llama-4-scout-17b-16e-instruct"]
         for model in models:
             try:
                 chat=groq_client.chat.completions.create(
@@ -213,7 +213,6 @@ def ask_any(q, uid, image_text=""):
             if any(x in ql for x in ["time in","current time","timing of","what time","time at","difference"]):
                 accurate=get_accurate_time_with_difference(ql)
                 if accurate: return accurate
-        tone=user_tones.get(uid,"ceo")
         if any(x in ql for x in ["who made you","who created you","kisne banaya","who built you","creator"]):
             return "<b>✅ I AM SATYA 👑</b> — CREATED BY HIBA HAANIYA.F — 15 — Palamaner 517408 — Founder & CEO — NOT OpenAI — Best bot 🌍✨"
         if "weather" in ql or "where is" in ql or "location of" in ql:
@@ -234,7 +233,7 @@ def ask_any(q, uid, image_text=""):
         loc_ctx=""
         if uid in user_locations: lat,lon,name=user_locations[uid]; loc_ctx=f"Saved {name[:60]}"
         image_instruction=f"IMAGE CONTENT (read perfectly by vision like ChatGPT): {image_text[:1500]}" if image_text else ""
-        prompt=f"You are SATYA by HIBA HAANIYA.F — Best teacher — WORLD CLASS — TEACH EVERYTHING IN POINTS — Use <b> </b> for headings to make bold different colour — Example <b>📌 What is Alkane? 🔬</b> — Then points with - — Then <b>🎯 Example:</b> — Add emojis for better understanding — NEVER USE * OR ** OR _ — Use HTML <b> only — LIVE: {live[:900]} LINK: {link_content[:900]} {image_instruction} Q: {q} Date: {datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%d %B %Y, %I:%M %p IST')} Saved: {loc_ctx} — FORMAT: <b>📌 Heading with emoji</b> newline - point 1 newline - point 2 — For any topic — Perfect image reading — Perfect link reading — Best bot — No mistakes — No * — Points only"
+        prompt=f"You are SATYA by HIBA HAANIYA.F — Best teacher — WORLD CLASS — TEACH EVERYTHING IN POINTS — Use <b> </b> for headings to make bold different colour — Example <b>📌 What is Alkane? 🔬</b> — Then points with - — Then <b>🎯 Example:</b> — Add emojis — NEVER USE * OR ** OR _ — Use HTML <b> only — LIVE: {live[:900]} LINK: {link_content[:900]} {image_instruction} Q: {q} Date: {datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%d %B %Y, %I:%M %p IST')} Saved: {loc_ctx} — FORMAT: <b>📌 Heading with emoji</b> newline - point 1 newline - point 2 — For any topic — Perfect image reading — Perfect link reading — Best bot — No mistakes — No * — Points only"
         if not groq_client: return "<b>⚠️ Add GROQ_API_KEY — SATYA by HIBA HAANIYA.F 👑</b>"
         models=["openai/gpt-oss-20b","openai/gpt-oss-120b","llama-3.3-70b-versatile","llama-3.1-8b-instant"]
         for m in models:
