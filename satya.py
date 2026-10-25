@@ -34,17 +34,19 @@ def save_locs():
 
 def clean(t):
     if not t or len(t.strip()) < 2:
-        return "SATYA by HIBA HAANIYA.F 👑 — Ask anything 🌍"
+        return "<b>⚡ SATYA by HIBA HAANIYA.F 👑</b> — Ask anything 🌍"
+    t = t.replace('<b>', '___B_OPEN___').replace('</b>', '___B_CLOSE___')
     t = re.sub(r'<[^>]+>', '', t)
+    t = t.replace('___B_OPEN___', '<b>').replace('___B_CLOSE___', '</b>')
     t = t.replace('**','').replace('__','')
     t = re.sub(r'\*+', '', t)
     t = re.sub(r'_+', '', t)
     t = t.replace('|','').replace('`','')
     t = re.sub(r'(?i)Answer\s*\(SATYA by HIBA HAANIYA\.F\)', '', t).strip()
     t = re.sub(r'\n{3,}', '\n\n', t)
-    lines=[x.strip() for x in t.split('\n') if x.strip()][:20]
+    lines=[x.strip() for x in t.split('\n') if x.strip()][:25]
     result='\n'.join(lines).strip()
-    return result[:2000] if result else "SATYA by HIBA HAANIYA.F 👑"
+    return result[:3500] if result else "<b>SATYA by HIBA HAANIYA.F 👑</b>"
 
 def detect_native_lang(text):
     if any('\u0900' <= c <= '\u097F' for c in text): return 'hi'
@@ -61,17 +63,17 @@ def detect_native_lang(text):
 def get_native_speak_text(text):
     t=text
     t=re.sub(r'(?i)Answer\s*\(SATYA by HIBA HAANIYA\.F\)', '', t)
-    t=t.replace("HIBA HAANIYA.F","Heeba Haaniya").replace("HIBA HAANIYA","Heeba Haaniya").replace("HIBA","Heeba").replace("SATYA","Sathya").replace(".F","")
-    t=re.sub(r'[✅❌⚠️🎤📍🕐🌤️🌍👑⚡🔥💖🎓🎛️⏱️🔍📰😏👀💀🤔🎬🎥🔗⏳👂🎙️📋✨😊💀🌙🧪📚🔬]', '', t)
+    t=t.replace("HIBA HAANIYA.F","He ba Haaniya").replace("HIBA HAANIYA","He ba Haaniya").replace("HIBA","He ba").replace("SATYA","Sathya").replace(".F","")
+    t=re.sub(r'<[^>]+>', '', t)
+    t=re.sub(r'[✅❌⚠️🎤📍🕐🌤️🌍👑⚡🔥💖🎓🎛️⏱️🔍📰😏👀💀🤔🎬🎥🔗⏳👂🎙️📋✨😊💀🌙🧪📚🔬📝📌🎯💧⚗️🧬]', '', t)
     t=t.replace("*","").replace("_","").replace("**","")
     t=t.replace("°C"," degrees ").replace("km/h"," kilometers ").replace("%"," percent ")
     t=t.replace("e.g.","for example").replace("vs.","versus")
-    t=t.replace(" - ", ". ").replace(" — ", ". ")
+    t=t.replace(" - ", ", ").replace(" — ", ", ").replace("-", ", ")
     t=re.sub(r'\s+', ' ', t).strip()
-    if any(w in t.lower() for w in ["alkane","alkene","alkyne","saturated","hydrocarbon","math","science","history","what is","explain"]):
-        if not t.lower().startswith("hello"):
-            t = "Hello, let me teach you clearly. " + t
-    return t[:600] or "Sathya by Heeba Haaniya teaches you"
+    if not t.lower().startswith("hello"):
+        t = "Hello, let me teach you clearly and step by step. " + t
+    return t[:700] or "Sathya by He ba Haaniya teaches you"
 
 def kb_tone():
     return InlineKeyboardMarkup([
@@ -201,7 +203,7 @@ def read_image_with_groq(file_path, extra_prompt=""):
 
 def ask_any(q, uid, image_text=""):
     try:
-        if not q and not image_text: return "✅ SATYA — HIBA HAANIYA.F 👑 — Send text 📝 image 👀 link 🔗 voice 🎤 — I read all like ChatGPT 🌍"
+        if not q and not image_text: return "<b>✅ SATYA by HIBA HAANIYA.F 👑</b> — Send text 📝 image 👀 link 🔗 voice 🎤 — I read all like ChatGPT 🌍"
         ql=(q or "").lower().strip()
         urls=re.findall(r'https?://\S+', q or ""); link_content=""
         if urls:
@@ -213,16 +215,16 @@ def ask_any(q, uid, image_text=""):
                 if accurate: return accurate
         tone=user_tones.get(uid,"ceo")
         if any(x in ql for x in ["who made you","who created you","kisne banaya","who built you","creator"]):
-            return "✅ I AM SATYA 👑 — CREATED BY HIBA HAANIYA.F — 15 — Palamaner 517408 — Founder & CEO — NOT OpenAI — Best bot 🌍✨"
+            return "<b>✅ I AM SATYA 👑</b> — CREATED BY HIBA HAANIYA.F — 15 — Palamaner 517408 — Founder & CEO — NOT OpenAI — Best bot 🌍✨"
         if "weather" in ql or "where is" in ql or "location of" in ql:
             place=ql
             for p in ["weather in","weather at","where is","location of","locate","weather","where","location"]: place=place.replace(p,"")
             place=place.strip() or "Palamaner"
             if uid in user_locations and any(x in ql for x in ["my location","my weather","here"]):
                 lat,lon,name=user_locations[uid]; info=get_time_weather_exact((lat,lon))
-                if info: return f"✅ WEATHER Saved 📍\n📍 {name[:120]}\n🕐 {info['time']}\n🌤️ {info['weather']} 🌍"
+                if info: return f"<b>✅ WEATHER Saved 📍</b>\n📍 {name[:120]}\n🕐 {info['time']}\n🌤️ {info['weather']} 🌍"
             info=get_time_weather_exact(place or "Palamaner")
-            if info: return f"✅ {place.upper()} 🌍\n🕐 {info['time']}\n📍 {info['display'][:150]}\n🌤️ {info['weather']} ✨"
+            if info: return f"<b>✅ {place.upper()} 🌍</b>\n🕐 {info['time']}\n📍 {info['display'][:150]}\n🌤️ {info['weather']} ✨"
         live=""
         if link_content:
             live=live_search_anywhere(link_content[:350])
@@ -232,31 +234,39 @@ def ask_any(q, uid, image_text=""):
         loc_ctx=""
         if uid in user_locations: lat,lon,name=user_locations[uid]; loc_ctx=f"Saved {name[:60]}"
         image_instruction=f"IMAGE CONTENT (read perfectly by vision like ChatGPT): {image_text[:1500]}" if image_text else ""
-        prompt=f"You are SATYA by HIBA HAANIYA.F — Best teacher bot — TEACH LEGIT FOR ANY TOPIC — Simple words, examples, not robotic — NEVER USE * OR ** OR _ FOR BOLD — Plain text only — Add 2-3 emojis naturally 👑 — If link: Title Channel — If image: use IMAGE CONTENT — LIVE: {live[:900]} LINK: {link_content[:900]} {image_instruction} Q: {q} Date: {datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%d %B %Y %I:%M %p IST')} Saved: {loc_ctx} — IMPORTANT: NO * NO ** NO _ NO MARKDOWN — Write like teacher explaining to 10th class — Use dashes - for points — Not stars — For any topic math science history english teach legit"
-        if not groq_client: return "⚠️ Add GROQ_API_KEY — SATYA by HIBA HAANIYA.F 👑"
+        prompt=f"You are SATYA by HIBA HAANIYA.F — Best teacher — WORLD CLASS — TEACH EVERYTHING IN POINTS — Use <b> </b> for headings to make bold different colour — Example <b>📌 What is Alkane? 🔬</b> — Then points with - — Then <b>🎯 Example:</b> — Add emojis for better understanding — NEVER USE * OR ** OR _ — Use HTML <b> only — LIVE: {live[:900]} LINK: {link_content[:900]} {image_instruction} Q: {q} Date: {datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%d %B %Y, %I:%M %p IST')} Saved: {loc_ctx} — FORMAT: <b>📌 Heading with emoji</b> newline - point 1 newline - point 2 — For any topic — Perfect image reading — Perfect link reading — Best bot — No mistakes — No * — Points only"
+        if not groq_client: return "<b>⚠️ Add GROQ_API_KEY — SATYA by HIBA HAANIYA.F 👑</b>"
         models=["openai/gpt-oss-20b","openai/gpt-oss-120b","llama-3.3-70b-versatile","llama-3.1-8b-instant"]
         for m in models:
             try:
-                c=groq_client.chat.completions.create(model=m, messages=[{"role":"system","content":"You are SATYA by HIBA HAANIYA.F — Best teacher — Teach legit for ANY topic — NEVER use * ** _ for bold — Plain text — Always add emojis — Always answer — For Saudi case: event TRUE per SPA 14 Oct, clip FALSE 2015 Myanmar"},{"role":"user","content":prompt}], temperature=0.3, max_tokens=800)
+                c=groq_client.chat.completions.create(model=m, messages=[{"role":"system","content":"You are SATYA by HIBA HAANIYA.F — Best teacher in world — You teach EVERYTHING in points with bold headings using <b>Heading</b> and emojis — You NEVER use * ** _ — You use <b> for headings — You give clear points — For any topic — Perfect image reading like ChatGPT — Perfect link reading — No mistakes — For Saudi Sweety Akhtar: event TRUE per SPA 14 Oct, clip FALSE 2015 Myanmar Laila Basim"}, {"role":"user","content":prompt}], temperature=0.3, max_tokens=900)
                 txt=c.choices[0].message.content.strip()
                 if txt and len(txt)>8:
                     if "OpenAI" in txt and "HIBA" not in txt: txt=txt.replace("OpenAI","HIBA HAANIYA.F")
                     cleaned=clean(txt)
                     if cleaned and len(cleaned)>8: return cleaned
             except Exception as e: print(f"Model {m} err {e}"); continue
-        if image_text: return f"✅ I read your image perfectly 👀\n📄 {image_text[:600]}\n💬 Ask what you want — SATYA by HIBA HAANIYA.F 👑"
+        if image_text: return f"<b>✅ I read your image perfectly 👀</b>\n📄 {image_text[:600]}\n💬 Ask what you want — SATYA by HIBA HAANIYA.F 👑"
         if live: return clean(f"✅ {live[:700]} 🌍 — SATYA by HIBA HAANIYA.F 👑")
-        return f"✅ SATYA by HIBA HAANIYA.F 👑 — Got: {q[:150]} — Ask again — I read all like ChatGPT 🌍✨"
+        return f"<b>✅ SATYA by HIBA HAANIYA.F 👑</b> — Got: {q[:150]} — Ask again — I read all like ChatGPT 🌍✨"
     except Exception as e:
-        print(f"ask_any crash {e}"); return f"✅ SATYA alive 👑 — Error {str(e)[:100]} — Try again — Palamaner 🌍"
+        print(f"ask_any crash {e}"); return f"<b>✅ SATYA alive 👑</b> — Error {str(e)[:100]} — Try again — Palamaner 🌍"
 
 async def start(update, context):
     uid=update.effective_user.id
     if uid in user_locations:
         lat,lon,name=user_locations[uid]; info=get_time_weather_exact((lat,lon))
-        await update.message.reply_text(f"⚡ SATYA — HIBA HAANIYA.F — CEO 👑\n🌍 Best bot — Text + Image + Link + Voice\n📍 {name[:120]}\n🌤️ {info['weather'] if info else ''}\n🕐 {info['time'] if info else ''}", reply_markup=kb_main_popup())
+        text=f"<b>⚡ SATYA — HIBA HAANIYA.F — CEO 👑</b>\n🌍 Best bot — Text + Image + Link + Voice\n📍 {name[:120]}\n🌤️ {info['weather'] if info else ''}\n🕐 {info['time'] if info else ''}"
+        try:
+            await update.message.reply_text(text, reply_markup=kb_main_popup(), parse_mode='HTML')
+        except:
+            await update.message.reply_text(re.sub(r'<[^>]+>', '', text), reply_markup=kb_main_popup())
     else:
-        await update.message.reply_text(f"⚡ SATYA — HIBA HAANIYA.F — CEO 👑\n✨ Best bot — Like ChatGPT but better\n🌍 Reads: Text 📝 Image 👀 Link 🔗 Voice 🎤 Any Language\n🕐 {datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%d %B %Y, %I:%M %p IST')}\n\n📍 Share location ONCE\n🎛️ Send any photo — I read perfectly like ChatGPT", reply_markup=kb_location_once())
+        text=f"<b>⚡ SATYA — HIBA HAANIYA.F — CEO 👑</b>\n✨ Best bot — Like ChatGPT but better\n🌍 Reads: Text 📝 Image 👀 Link 🔗 Voice 🎤 Any Language\n🕐 {datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%d %B %Y, %I:%M %p IST')}\n\n📍 Share location ONCE\n🎛️ Send any photo — I read perfectly like ChatGPT"
+        try:
+            await update.message.reply_text(text, reply_markup=kb_location_once(), parse_mode='HTML')
+        except:
+            await update.message.reply_text(re.sub(r'<[^>]+>', '', text), reply_markup=kb_location_once())
 
 async def loc_cmd(update, context):
     await update.message.reply_text("📍 Share location ONCE 🌍:", reply_markup=kb_location_once())
@@ -279,9 +289,12 @@ async def handle_text(update, context):
     if "http://" in text or "https://" in text: await update.message.reply_text("🔗 Reading link... Title... Content... Verifying... 6 sec... ⏳🔍", reply_markup=kb_main_popup())
     loop=asyncio.get_running_loop()
     try: ans=await loop.run_in_executor(None, ask_any, text, update.effective_user.id, "")
-    except Exception as e: ans=f"✅ SATYA by HIBA HAANIYA.F 👑 — Error {e} — Try again"
-    if not ans or len(ans.strip())<2: ans=f"✅ SATYA — HIBA HAANIYA.F 👑 — Got: {text[:100]} — Time {datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%I:%M %p')} ⏰"
-    await update.message.reply_text(ans, reply_markup=kb_main_popup())
+    except Exception as e: ans=f"<b>✅ SATYA by HIBA HAANIYA.F 👑</b> — Error {e} — Try again"
+    if not ans or len(ans.strip())<2: ans=f"<b>✅ SATYA — HIBA HAANIYA.F 👑</b> — Got: {text[:100]} — Time {datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%I:%M %p')} ⏰"
+    try:
+        await update.message.reply_text(ans, reply_markup=kb_main_popup(), parse_mode='HTML')
+    except:
+        await update.message.reply_text(re.sub(r'<[^>]+>', '', ans), reply_markup=kb_main_popup())
     if user_voice_reply.get(update.effective_user.id):
         try:
             from gtts import gTTS; speak=get_native_speak_text(ans); lang=detect_native_lang(ans)
@@ -302,8 +315,11 @@ async def handle_photo(update, context):
         caption=update.message.caption or ""; full_q=f"{caption}\nImage content: {image_text}" if caption else image_text
         loop=asyncio.get_running_loop()
         ans=await loop.run_in_executor(None, ask_any, full_q, update.effective_user.id, image_text)
-        if not ans or len(ans.strip())<2: ans=f"✅ I read your image perfectly like ChatGPT 👀\n📄 {image_text[:600]}"
-        await update.message.reply_text(ans, reply_markup=kb_main_popup())
+        if not ans or len(ans.strip())<2: ans=f"<b>✅ I read your image perfectly like ChatGPT 👀</b>\n📄 {image_text[:600]}"
+        try:
+            await update.message.reply_text(ans, reply_markup=kb_main_popup(), parse_mode='HTML')
+        except:
+            await update.message.reply_text(re.sub(r'<[^>]+>', '', ans), reply_markup=kb_main_popup())
         if user_voice_reply.get(update.effective_user.id):
             try:
                 from gtts import gTTS; speak=get_native_speak_text(ans); lang=detect_native_lang(ans)
@@ -322,8 +338,11 @@ async def handle_voice(update, context):
         if text:
             await update.message.reply_text(f"🎤 Heard: {text[:250]} 👂✨", reply_markup=kb_main_popup())
             loop=asyncio.get_running_loop(); ans=await loop.run_in_executor(None, ask_any, text, update.effective_user.id, "")
-            if not ans or len(ans.strip())<2: ans="✅ SATYA by HIBA HAANIYA.F 👑 — Heard voice"
-            await update.message.reply_text(ans, reply_markup=kb_main_popup())
+            if not ans or len(ans.strip())<2: ans="<b>✅ SATYA by HIBA HAANIYA.F 👑 — Heard voice</b>"
+            try:
+                await update.message.reply_text(ans, reply_markup=kb_main_popup(), parse_mode='HTML')
+            except:
+                await update.message.reply_text(re.sub(r'<[^>]+>', '', ans), reply_markup=kb_main_popup())
             try:
                 from gtts import gTTS; speak=get_native_speak_text(ans); lang=detect_native_lang(ans)
                 with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp2:
@@ -346,7 +365,7 @@ async def handle_loc(update, context):
 
 async def post_init(app):
     await app.bot.delete_webhook(drop_pending_updates=True)
-    print("✅ SATYA BEST — Text HIBA HAANIYA.F, Voice Heeba Haaniya — No star — Teaches legit for ANYTHING — CEO 👑🌍🔥")
+    print("✅ SATYA BEST — Points — Bold colour headings — He ba speech clear — Best bot — CEO HIBA HAANIYA.F 👑🌍🔥")
 
 def main():
     app=Application.builder().token(BOT_TOKEN).post_init(post_init).build()
