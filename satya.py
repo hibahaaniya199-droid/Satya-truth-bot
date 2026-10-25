@@ -55,33 +55,59 @@ def clean(t):
     lines=[x for x in lines if 'bottom line' not in x.lower()]
     return '\n'.join('\n'.join(lines).split('\n')[:7]).strip()
 
+def detect_native_lang(text):
+    # ANY DAMN LANGUAGE ON PLANET — NATIVE ACCENT — NOT ENGLISH ACCENT
+    if any('\u0900' <= c <= '\u097F' for c in text):
+        return 'hi'  # Hindi — native Didi voice
+    if any('\u0C00' <= c <= '\u0C7F' for c in text):
+        return 'te'  # Telugu — native Amma voice
+    if any('\u0B80' <= c <= '\u0BFF' for c in text):
+        return 'ta'  # Tamil
+    if any('\u0C80' <= c <= '\u0CFF' for c in text):
+        return 'kn'  # Kannada
+    if any('\u0D00' <= c <= '\u0D7F' for c in text):
+        return 'ml'  # Malayalam
+    if any('\u0980' <= c <= '\u09FF' for c in text):
+        return 'bn'  # Bengali
+    if any('\u0A80' <= c <= '\u0AFF' for c in text):
+        return 'gu'  # Gujarati
+    if any('\u0600' <= c <= '\u06FF' for c in text):
+        # Urdu vs Arabic
+        if any(x in text for x in ['اردو','میں','ہے','ہوں']):
+            return 'ur'
+        return 'ar'
+    if any('\uAC00' <= c <= '\uD7AF' for c in text or '\u1100' <= c <= '\u11FF' for c in text):
+        return 'ko'  # Korean — native
+    if any('\u3040' <= c <= '\u30FF' for c in text):
+        return 'ja'  # Japanese
+    if any('\u4E00' <= c <= '\u9FFF' for c in text):
+        return 'zh'  # Chinese
+    if any('\u0E00' <= c <= '\u0E7F' for c in text):
+        return 'th'  # Thai
+    return 'en'  # English native
+
 def get_native_speak_text(text):
-    # SPEAK ANY DAMN WORD PROPERLY — NATIVE SPEAKER — UNEDUCATED WILL UNDERSTAND
+    # SPEAK ANY DAMN WORD PROPERLY — NATIVE — UNEDUCATED WILL UNDERSTAND
     t=text
-    # Remove emojis and symbols for voice
+    # Keep language script — Remove only emojis and lat lon for voice
     t=re.sub(r'[✅❌⚠️🎤📍🕐🌤️🌍👑⚡🔥💖🎓🎛️]', '', t)
-    # Name properly — HE-BA HAA-NI-YA — Founder CEO
+    # Name properly — Heeba Haaniya — Not spelling
     t=t.replace("HIBA HAANIYA.F", "Heeba Haaniya")
     t=t.replace("HIBA HAANIYA", "Heeba Haaniya")
     t=t.replace("HIBA", "Heeba")
     t=t.replace("SATYA", "Sathya")
     t=t.replace(".F", "")
     t=t.replace("Founder & CEO", "Founder and CEO")
-    # Make any damn word speak properly for uneducated
+    # For voice — remove lat lon numbers — uneducated won't understand
+    t=re.sub(r'Lat.*Lon.*', '', t)
+    t=re.sub(r'📍.*\n', '', t)
+    t=re.sub(r'\d+\.\d+', '', t)  # Remove 13.199371
+    # Make symbols speak properly
     t=t.replace("°C", " degrees ")
-    t=t.replace("°", " degrees ")
     t=t.replace("km/h", " kilometers per hour ")
     t=t.replace("%", " percent ")
-    t=t.replace("lat", " latitude ")
-    t=t.replace("lon", " longitude ")
-    # Remove lat lon numbers for voice — uneducated won't understand 13.199371 — say near place instead
-    t=re.sub(r'\d+\.\d+', '', t)  # Remove 13.199371 type numbers for voice
-    t=re.sub(r'Lat.*Lon.*', '', t)
-    t=re.sub(r'📍.*', '', t)
-    # Clean extra spaces
     t=re.sub(r'\s+', ' ', t).strip()
-    # Limit to 350 chars for clear voice — native speaker speaks slow clear
-    return t[:350].strip()
+    return t[:400]
 
 def kb_tone():
     return InlineKeyboardMarkup([
@@ -96,7 +122,6 @@ def kb_location_once():
     return ReplyKeyboardMarkup([[btn]], resize_keyboard=True, one_time_keyboard=True)
 
 def kb_main_popup():
-    # POP UP ABOVE — LIKE A BUTTON — CHANGE TONE AND SPEAK — ALWAYS ABOVE MESSAGE BOX
     btn1 = KeyboardButton("🎛️ Change Tone")
     btn2 = KeyboardButton("🎤 Speak Voice")
     btn3 = KeyboardButton("🌍 Any Language")
@@ -211,15 +236,15 @@ def ask_any(q, uid):
         info=get_time_weather_exact((lat,lon))
         if info: loc_ctx=f"Saved {name} {info['time']} {info['weather']}"
 
-    prompt=f"""You are SATYA — Created by HIBA HAANIYA.F — 15 — Palamaner — Founder and CEO — You are NOT OpenAI.
+    prompt=f"""You are SATYA — Created by HIBA HAANIYA.F — 15 — Palamaner — Founder and CEO — NOT OpenAI. If asked who made you, MUST say HIBA HAANIYA.F.
 
 {TONES.get(tone,'')}
-Same language as question — Simple words for uneducated — No difficult English — Speak like native.
+Same language as question — Simple words for uneducated — No difficult English — Native.
 Rules: NEVER ** * | --- table. Max 6 lines. Start ✅ ❌ ⚠️. Tone {tone.upper()}. Date {datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%d %B %Y %I:%M %p IST')}
 Saved: {loc_ctx}
 LIVE: {live[:3500]}
 Q: {q}
-Answer simple for uneducated — native language:
+Answer simple native:
 """
     if not groq_client: return "⚠️ Add GROQ_API_KEY"
     models=["openai/gpt-oss-20b","openai/gpt-oss-120b","qwen/qwen3-32b","llama-3.3-70b-versatile","llama-3.1-8b-instant"]
@@ -228,7 +253,7 @@ Answer simple for uneducated — native language:
             c=groq_client.chat.completions.create(
                 model=m,
                 messages=[
-                    {"role":"system","content":"You are SATYA created by HIBA HAANIYA.F. NOT OpenAI. Say HIBA HAANIYA.F is creator. Use simple words for uneducated people."},
+                    {"role":"system","content":"You are SATYA created by HIBA HAANIYA.F. NOT OpenAI. MUST say HIBA HAANIYA.F is creator. Use simple words."},
                     {"role":"user","content":prompt}
                 ],
                 temperature=0.7 if tone=="roast" else 0.25,
@@ -249,7 +274,7 @@ async def start(update, context):
     if uid in user_locations:
         lat,lon,name=user_locations[uid]
         info=get_time_weather_exact((lat,lon))
-        await update.message.reply_text(f"⚡ SATYA — HIBA HAANIYA.F — CEO — Location saved — Not asking again\n📍 {name[:120]}\n🌤️ {info['weather'] if info else ''}\n🕐 {info['time'] if info else ''}\n\n🎛️ Use buttons below to change tone and speak — Pop up above", reply_markup=kb_main_popup())
+        await update.message.reply_text(f"⚡ SATYA — HIBA HAANIYA.F — CEO — Location saved — Not asking again\n📍 {name[:120]}\n🌤️ {info['weather'] if info else ''}\n🕐 {info['time'] if info else ''}\n\n🎛️ Use buttons below — Pop up above", reply_markup=kb_main_popup())
     else:
         await update.message.reply_text(f"⚡ SATYA — HIBA HAANIYA.F — CEO 🌍\n👑 Created by HIBA — Not OpenAI\n🕐 {datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%d %B %Y %I:%M %p IST')}\n\n📍 Share location ONCE — Saved forever\n👇 Click once below:", reply_markup=kb_location_once())
 
@@ -266,29 +291,28 @@ async def tone_cb(update, context):
     uid=q.from_user.id
     if data=="t_lang":
         user_lang_mode[uid]=True
-        await q.edit_message_text("✅ 🌍 ANY LANGUAGE ON — I speak like native — Telugu Hindi Urdu Korean English — Pop up closed — Click 🎛️ Change Tone button above to open again")
+        await q.edit_message_text("✅ 🌍 ANY LANGUAGE ON — I speak like native — No English accent — Pop up closed — Click 🎛️ Change Tone above")
     elif data=="t_voice":
         user_voice_reply[uid]=True
         user_lang_mode[uid]=True
-        await q.edit_message_text("✅ 🎤 VOICE MODE ON — I speak like native speaker — Heeba Haaniya properly — Any damn word properly — Uneducated will understand — Click 🎛️ button above to change")
+        await q.edit_message_text("✅ 🎤 VOICE MODE ON — I speak like native — Any damn language on planet — No English accent — Heeba Haaniya properly — Click 🎛️ above")
     else:
         user_tones[uid]=data.replace("t_","")
-        await q.edit_message_text(f"✅ Tone {data.replace('t_','').upper()} set — Pop up closed — Click 🎛️ Change Tone button above to change again")
+        await q.edit_message_text(f"✅ Tone {data.replace('t_','').upper()} set — Pop up closed — Click 🎛️ Change Tone above")
 
 async def handle_text(update, context):
     text = update.message.text
-    # POP UP BUTTON ABOVE — CHANGE TONE AND SPEAK — WHEN CLICKED
     if text == "🎛️ Change Tone":
         await update.message.reply_text("🎛️ Choose tone — Pop up above — Click:", reply_markup=kb_tone())
         return
     if text == "🎤 Speak Voice":
         user_voice_reply[update.effective_user.id]=True
         user_lang_mode[update.effective_user.id]=True
-        await update.message.reply_text("✅ 🎤 VOICE MODE ON — Send voice note with mic — I detect and speak like native — Heeba Haaniya properly — Any language — Any damn word properly", reply_markup=kb_main_popup())
+        await update.message.reply_text("✅ 🎤 VOICE MODE ON — Send voice — I speak like native — No English accent — Any language on planet — Heeba Haaniya properly", reply_markup=kb_main_popup())
         return
     if text == "🌍 Any Language":
         user_lang_mode[update.effective_user.id]=True
-        await update.message.reply_text("✅ 🌍 ANY LANGUAGE ON — I speak like native — Telugu Hindi Urdu Korean — Any damn word properly — Send message in any language", reply_markup=kb_main_popup())
+        await update.message.reply_text("✅ 🌍 ANY LANGUAGE ON — I speak like native — No English accent — Any damn language", reply_markup=kb_main_popup())
         return
 
     ans=ask_any(text, update.effective_user.id)
@@ -297,13 +321,8 @@ async def handle_text(update, context):
         try:
             from gtts import gTTS
             speak = get_native_speak_text(ans)
+            lang = detect_native_lang(ans)  # NATIVE ACCENT — NOT ENGLISH ACCENT — ANY LANGUAGE
             with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
-                lang='en'
-                if any('\u0900' <= c <= '\u097F' for c in text): lang='hi'
-                if any('\u0C00' <= c <= '\u0C7F' for c in text): lang='te'
-                if any('\u0C80' <= c <= '\u0CFF' for c in text): lang='kn'
-                if any('\u0B80' <= c <= '\u0BFF' for c in text): lang='ta'
-                # Native speaker — any language
                 tts = gTTS(text=speak, lang=lang, slow=False)
                 tts.save(tmp.name)
                 await update.message.reply_voice(voice=open(tmp.name,'rb'))
@@ -323,10 +342,7 @@ async def handle_voice(update, context):
             try:
                 from gtts import gTTS
                 speak = get_native_speak_text(ans)
-                lang='en'
-                if any('\u0900' <= c <= '\u097F' for c in text): lang='hi'
-                if any('\u0C00' <= c <= '\u0C7F' for c in text): lang='te'
-                if any('\u0C80' <= c <= '\u0CFF' for c in text): lang='kn'
+                lang = detect_native_lang(ans)  # NATIVE — NOT ENGLISH ACCENT — ANY LANGUAGE ON PLANET
                 with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp2:
                     tts = gTTS(text=speak, lang=lang, slow=False)
                     tts.save(tmp2.name)
@@ -351,13 +367,13 @@ async def handle_loc(update, context):
     save_locs()
     info=get_time_weather_exact((lat,lon))
     if info:
-        await update.message.reply_text(f"✅ LOCATION SAVED ONCE — Never again — HIBA HAANIYA.F\n📍 {name[:150]}\n📍 {lat:.6f},{lon:.6f}\n🕐 {info['time']}\n🌤️ {info['weather']}\n\nNow use buttons below — 🎛️ Change Tone — 🎤 Speak — Pop up above", reply_markup=kb_main_popup())
+        await update.message.reply_text(f"✅ LOCATION SAVED ONCE — Never again — HIBA HAANIYA.F\n📍 {name[:150]}\n📍 {lat:.6f},{lon:.6f}\n🕐 {info['time']}\n🌤️ {info['weather']}\n\nUse buttons below — 🎛️ Change Tone — 🎤 Speak — Native accent — No English accent", reply_markup=kb_main_popup())
     else:
         await update.message.reply_text(f"✅ Saved — {lat:.6f},{lon:.6f}", reply_markup=kb_main_popup())
 
 async def post_init(app):
     await app.bot.delete_webhook(drop_pending_updates=True)
-    print("✅ Native speaker — Pop up buttons above — Heeba Haaniya proper")
+    print("✅ Native accent — Any damn language — No English accent — Pop up buttons")
 
 def main():
     app=Application.builder().token(BOT_TOKEN).post_init(post_init).build()
