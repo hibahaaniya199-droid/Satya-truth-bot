@@ -1,3 +1,4 @@
+# SATYA by HIBA HAANIYA.F - TEXT always HIBA HAANIYA.F, SPEECH pronounces Heeba Haaniya
 import os, requests, re, json, tempfile, asyncio, base64
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -22,23 +23,13 @@ try:
             data = json.load(f)
             for k, v in data.items():
                 user_locations[int(k)] = (v[0], v[1], v[2] if len(v) > 2 else "Saved")
-except:
-    pass
+except: pass
 
 def save_locs():
     try:
         with open(LOC_FILE, "w") as f:
             json.dump({str(k): [v[0], v[1], v[2]] for k, v in user_locations.items()}, f)
-    except:
-        pass
-
-TONES = {
-    "short": "SHORT — crisp with emojis",
-    "ceo": "CEO — confident premium 👑",
-    "friendly": "FRIENDLY — warm 💖",
-    "formal": "FORMAL — respectful 🎓",
-    "roast": "ROAST — savage 🔥"
-}
+    except: pass
 
 def clean(t):
     if not t or len(t.strip()) < 2:
@@ -48,7 +39,7 @@ def clean(t):
     t = re.sub(r'\n{3,}', '\n\n', t)
     lines=[x.strip() for x in t.split('\n') if x.strip()][:18]
     result='\n'.join(lines).strip()
-    return result[:2000] if result else "SATYA by HIBA 👑"
+    return result[:2000] if result else "SATYA by HIBA HAANIYA.F 👑"
 
 def detect_native_lang(text):
     if any('\u0900' <= c <= '\u097F' for c in text): return 'hi'
@@ -63,7 +54,7 @@ def detect_native_lang(text):
     return 'en'
 
 def get_native_speak_text(text):
-    t=text.replace("HIBA HAANIYA.F","Heeba Haaniya").replace("SATYA","Sathya").replace(".F","")
+    t=text.replace("HIBA HAANIYA.F","Heeba Haaniya").replace("HIBA HAANIYA","Heeba Haaniya").replace("HIBA","Heeba").replace("SATYA","Sathya").replace(".F","")
     t=re.sub(r'[✅❌⚠️🎤📍🕐🌤️🌍👑⚡🔥💖🎓🎛️⏱️🔍📰😏👀💀🤔🎬🎥🔗⏳👂🎙️📋✨😊💀🌙]', '', t)
     t=t.replace("°C"," degrees ").replace("km/h"," kilometers ").replace("%"," percent ")
     t=re.sub(r'\s+', ' ', t).strip()
@@ -183,7 +174,7 @@ def read_image_with_groq(file_path, extra_prompt=""):
                 chat=groq_client.chat.completions.create(
                     model=model,
                     messages=[{"role":"user","content":[
-                        {"type":"text","text":f"You are SATYA vision by HIBA — Read this image PERFECTLY like ChatGPT — Extract ALL text exactly, describe objects, people, scene, numbers, charts, handwriting, any language Hindi Telugu Tamil English Arabic — If math problem solve — If meme explain — Be accurate — Extra: {extra_prompt}"},
+                        {"type":"text","text":f"You are SATYA vision by HIBA HAANIYA.F — Read this image PERFECTLY like ChatGPT — Extract ALL text exactly, describe objects, people, scene, numbers, charts, handwriting, any language Hindi Telugu Tamil English Arabic — If math problem solve — If meme explain — Be accurate — Extra: {extra_prompt}"},
                         {"type":"image_url","image_url":{"url":f"data:image/jpeg;base64,{b64}"}}
                     ]}],
                     max_tokens=1200, temperature=0.1
@@ -219,7 +210,7 @@ def ask_any(q, uid, image_text=""):
                 if info: return f"✅ WEATHER Saved 📍\n📍 {name[:120]}\n🕐 {info['time']}\n🌤️ {info['weather']} 🌍"
             info=get_time_weather_exact(place or "Palamaner")
             if info: return f"✅ {place.upper()} 🌍\n🕐 {info['time']}\n📍 {info['display'][:150]}\n🌤️ {info['weather']} ✨"
-        live=""; fact=""
+        live=""
         if link_content:
             live=live_search_anywhere(link_content[:350])
         else:
@@ -228,20 +219,20 @@ def ask_any(q, uid, image_text=""):
         loc_ctx=""
         if uid in user_locations: lat,lon,name=user_locations[uid]; loc_ctx=f"Saved {name[:60]}"
         image_instruction=f"IMAGE CONTENT (read perfectly by vision like ChatGPT): {image_text[:1500]}" if image_text else ""
-        prompt=f"You are SATYA by HIBA HAANIYA.F — Best bot like ChatGPT — Read images perfectly — Any language — Add 2-3 emojis naturally 👑 🔥 💖 🌍 ✅ 📰 🔍 🌤️ 🕐 👀 — If link: Title Channel News says Fact check — If image: use IMAGE CONTENT to answer accurately — LIVE: {live[:900]} LINK: {link_content[:900]} {image_instruction} Q: {q} Date IST: {datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%d %B %Y %I:%M %p IST')} Saved: {loc_ctx}"
-        if not groq_client: return "⚠️ Add GROQ_API_KEY — SATYA by HIBA 👑"
+        prompt=f"You are SATYA by HIBA HAANIYA.F — Best bot like ChatGPT — Read images perfectly — Any language — Add 2-3 emojis naturally 👑 🔥 💖 🌍 ✅ 📰 🔍 🌤️ 🕐 👀 — If link: Title Channel News says Fact check — If image: use IMAGE CONTENT to answer accurately — LIVE: {live[:900]} LINK: {link_content[:900]} {image_instruction} Q: {q} Date IST: {datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%d %B %Y, %I:%M %p IST')} Saved: {loc_ctx}"
+        if not groq_client: return "⚠️ Add GROQ_API_KEY — SATYA by HIBA HAANIYA.F 👑"
         models=["openai/gpt-oss-20b","openai/gpt-oss-120b","llama-3.3-70b-versatile","llama-3.1-8b-instant"]
         for m in models:
             try:
-                c=groq_client.chat.completions.create(model=m, messages=[{"role":"system","content":"You are SATYA by HIBA — Best bot like ChatGPT — Read images perfectly — Never use entity tags — Always add emojis — Always answer — For Saudi case: event TRUE per SPA 14 Oct, clip FALSE 2015 Myanmar"},{"role":"user","content":prompt}], temperature=0.3, max_tokens=800)
+                c=groq_client.chat.completions.create(model=m, messages=[{"role":"system","content":"You are SATYA by HIBA HAANIYA.F — Best bot like ChatGPT — Read images perfectly — Never use entity tags — Always add emojis — Always answer — For Saudi case: event TRUE per SPA 14 Oct, clip FALSE 2015 Myanmar"},{"role":"user","content":prompt}], temperature=0.3, max_tokens=800)
                 txt=c.choices[0].message.content.strip()
                 if txt and len(txt)>8:
                     if "OpenAI" in txt and "HIBA" not in txt: txt=txt.replace("OpenAI","HIBA HAANIYA.F")
                     cleaned=clean(txt)
                     if cleaned and len(cleaned)>8: return cleaned
             except Exception as e: print(f"Model {m} err {e}"); continue
-        if image_text: return f"✅ I read your image perfectly 👀\n📄 {image_text[:600]}\n💬 Ask what you want — SATYA by HIBA 👑"
-        if live: return clean(f"✅ {live[:700]} 🌍 — SATYA by HIBA 👑")
+        if image_text: return f"✅ I read your image perfectly 👀\n📄 {image_text[:600]}\n💬 Ask what you want — SATYA by HIBA HAANIYA.F 👑"
+        if live: return clean(f"✅ {live[:700]} 🌍 — SATYA by HIBA HAANIYA.F 👑")
         return f"✅ SATYA by HIBA HAANIYA.F 👑 — Got: {q[:150]} — Ask again — I read all like ChatGPT 🌍✨"
     except Exception as e:
         print(f"ask_any crash {e}"); return f"✅ SATYA alive 👑 — Error {str(e)[:100]} — Try again — Palamaner 🌍"
@@ -275,7 +266,7 @@ async def handle_text(update, context):
     if "http://" in text or "https://" in text: await update.message.reply_text("🔗 Reading link... Title... Content... Verifying... 6 sec... ⏳🔍", reply_markup=kb_main_popup())
     loop=asyncio.get_running_loop()
     try: ans=await loop.run_in_executor(None, ask_any, text, update.effective_user.id, "")
-    except Exception as e: ans=f"✅ SATYA by HIBA 👑 — Error {e} — Try again"
+    except Exception as e: ans=f"✅ SATYA by HIBA HAANIYA.F 👑 — Error {e} — Try again"
     if not ans or len(ans.strip())<2: ans=f"✅ SATYA — HIBA HAANIYA.F 👑 — Got: {text[:100]} — Time {datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%I:%M %p')} ⏰"
     await update.message.reply_text(ans, reply_markup=kb_main_popup())
     if user_voice_reply.get(update.effective_user.id):
@@ -318,7 +309,7 @@ async def handle_voice(update, context):
         if text:
             await update.message.reply_text(f"🎤 Heard: {text[:250]} 👂✨", reply_markup=kb_main_popup())
             loop=asyncio.get_running_loop(); ans=await loop.run_in_executor(None, ask_any, text, update.effective_user.id, "")
-            if not ans or len(ans.strip())<2: ans="✅ SATYA by HIBA 👑 — Heard voice"
+            if not ans or len(ans.strip())<2: ans="✅ SATYA by HIBA HAANIYA.F 👑 — Heard voice"
             await update.message.reply_text(ans, reply_markup=kb_main_popup())
             try:
                 from gtts import gTTS; speak=get_native_speak_text(ans); lang=detect_native_lang(ans)
@@ -342,7 +333,7 @@ async def handle_loc(update, context):
 
 async def post_init(app):
     await app.bot.delete_webhook(drop_pending_updates=True)
-    print("✅ SATYA BEST — No cheating — Real vision like ChatGPT — HIBA CEO 👑🌍🔥")
+    print("✅ SATYA BEST — Text HIBA HAANIYA.F, Voice Heeba Haaniya — No cheating — Real vision — CEO 👑🌍🔥")
 
 def main():
     app=Application.builder().token(BOT_TOKEN).post_init(post_init).build()
