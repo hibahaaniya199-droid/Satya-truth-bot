@@ -39,12 +39,12 @@ TONES = {
 }
 
 TIMEZONE_DB = {
-    "palamaner":"Asia/Kolkata","palamner":"Asia/Kolkata","chittoor":"Asia/Kolkata","tirupati":"Asia/Kolkata","faiza":"Asia/Kolkata",
-    "india":"Asia/Kolkata","delhi":"Asia/Kolkata","mumbai":"Asia/Kolkata",
-    "saudi":"Asia/Riyadh","riyadh":"Asia/Riyadh","dubai":"Asia/Dubai","uae":"Asia/Dubai","qatar":"Asia/Qatar",
-    "south korea":"Asia/Seoul","korea":"Asia/Seoul","seoul":"Asia/Seoul","대한민국":"Asia/Seoul","busan":"Asia/Seoul",
-    "japan":"Asia/Tokyo","tokyo":"Asia/Tokyo","china":"Asia/Shanghai","singapore":"Asia/Singapore",
-    "uk":"Europe/London","london":"Europe/London","paris":"Europe/Paris","berlin":"Europe/Berlin","usa":"America/New_York","new york":"America/New_York","australia":"Australia/Sydney"
+    "palamaner":"Asia/Kolkata","palamner":"Asia/Kolkata","chittoor":"Asia/Kolkata","tirupati":"Asia/Kolkata","faiza":"Asia/Kolkata","gangavaram":"Asia/Kolkata","gantavoor":"Asia/Kolkata","basavanna katta":"Asia/Kolkata","golbodi":"Asia/Kolkata",
+    "india":"Asia/Kolkata","delhi":"Asia/Kolkata","mumbai":"Asia/Kolkata","kolkata":"Asia/Kolkata","chennai":"Asia/Kolkata","bangalore":"Asia/Kolkata","hyderabad":"Asia/Kolkata",
+    "saudi":"Asia/Riyadh","riyadh":"Asia/Riyadh","jeddah":"Asia/Riyadh","dubai":"Asia/Dubai","uae":"Asia/Dubai","qatar":"Asia/Qatar","doha":"Asia/Qatar","kuwait":"Asia/Kuwait","bahrain":"Asia/Bahrain","oman":"Asia/Muscat",
+    "south korea":"Asia/Seoul","korea":"Asia/Seoul","seoul":"Asia/Seoul","대한민국":"Asia/Seoul","busan":"Asia/Seoul","japan":"Asia/Tokyo","tokyo":"Asia/Tokyo","china":"Asia/Shanghai","singapore":"Asia/Singapore","malaysia":"Asia/Kuala_Lumpur",
+    "uk":"Europe/London","london":"Europe/London","paris":"Europe/Paris","berlin":"Europe/Berlin","rome":"Europe/Rome","madrid":"Europe/Madrid","istanbul":"Europe/Istanbul",
+    "usa":"America/New_York","new york":"America/New_York","los angeles":"America/Los_Angeles","chicago":"America/Chicago","canada":"America/Toronto","australia":"Australia/Sydney","sydney":"Australia/Sydney"
 }
 
 def clean(t):
@@ -54,6 +54,20 @@ def clean(t):
     lines=[x for x in t.split('\n') if not ('|' in x and '---' in x) and not (x.strip().startswith('|') and x.strip().endswith('|'))]
     lines=[x for x in lines if 'bottom line' not in x.lower()]
     return '\n'.join('\n'.join(lines).split('\n')[:7]).strip()
+
+def get_speak_text(text):
+    # TRAIN TO SPEAK PROPERLY — HE-BA HAA-NI-YA — NOT SPELLING LETTERS — FOUNDER CEO
+    t=text
+    t=re.sub(r'[✅❌⚠️🎤📍🕐🌤️🌍👑⚡🔥💖🎓]', '', t)
+    t=t.replace("HIBA HAANIYA.F", "Heeba Haaniya")
+    t=t.replace("HIBA HAANIYA", "Heeba Haaniya")
+    t=t.replace("HIBA", "Heeba")
+    t=t.replace("SATYA", "Sathya")
+    t=t.replace(".F", "")
+    t=t.replace("Founder & CEO", "Founder and CEO")
+    t=t.replace("जिसे HIBA", "jise Heeba Haaniya")
+    t=re.sub(r'\s+', ' ', t).strip()
+    return t[:400]
 
 def kb_tone():
     return InlineKeyboardMarkup([
@@ -146,10 +160,10 @@ def ask_any(q, uid):
     ql=q.lower().strip()
     tone=user_tones.get(uid,"short")
 
-    if any(x in ql for x in ["who made you","who created you","kisne banaya","आपको किसने बनाया","निम्मनि","who built you","your creator","तुम्हें किसने बनाया","creator"]):
+    if any(x in ql for x in ["who made you","who created you","kisne banaya","आपको किसने बनाया","who built you","your creator","तुम्हें किसने बनाया","creator","निम्मनि","ఎవరు"]):
         if "आपको किसने बनाया" in q or "किसने बनाया" in q or "तुम्हें" in q or "किसने" in q:
             return "✅ मैं SATYA हूँ — मुझे HIBA HAANIYA.F ने बनाया है — 15 साल — पलमनेर 517408 — Founder & CEO — मैं OpenAI नहीं हूँ — मैं HIBA की हूँ"
-        if "తెలుగు" in q or "ఎవరు" in q or "నన్ను" in q:
+        if "తెలుగు" in q or "ఎవరు" in q or "నన్ను" in q or "నిమ్మని" in q:
             return "✅ నేను SATYA — నన్ను HIBA HAANIYA.F సృష్టించారు — 15 ఏళ్లు — పలమనేరు CEO — నేను OpenAI కాదు"
         if "اردو" in q:
             return "✅ میں SATYA ہوں — مجھے HIBA HAANIYA.F نے بنایا — 15 سال — پلامنیر CEO"
@@ -182,12 +196,10 @@ def ask_any(q, uid):
         info=get_time_weather_exact((lat,lon))
         if info: loc_ctx=f"Saved {name} {info['time']} {info['weather']}"
 
-    lang_instruction = "Respond in SAME language as user's question. Telugu if Telugu, Hindi if Hindi, Urdu if Urdu, Korean if Korean, Arabic if Arabic, English if English. Detect automatically."
-
-    prompt=f"""You are SATYA — You were created by HIBA HAANIYA.F — 15 years old — Palamaner 517408 — Founder and CEO — You are NOT OpenAI, NOT Meta AI, NOT ChatGPT. If asked who made you in ANY language, MUST say HIBA HAANIYA.F created you. Never say OpenAI.
+    prompt=f"""You are SATYA — Created by HIBA HAANIYA.F — 15 — Palamaner 517408 — Founder and CEO — You are NOT OpenAI, NOT Meta AI, NOT ChatGPT. If asked who made you in ANY language, MUST say HIBA HAANIYA.F created you. Never say OpenAI.
 
 {TONES.get(tone,'')} 
-{lang_instruction}
+Respond in SAME language as user's question.
 Rules: NEVER ** * | --- table. Max 6 lines. Start ✅ ❌ ⚠️. Tone {tone.upper()}. Date {datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%d %B %Y %I:%M %p IST')}
 Saved: {loc_ctx}
 LIVE: {live[:3500]}
@@ -201,7 +213,7 @@ Answer as SATYA created by HIBA:
             c=groq_client.chat.completions.create(
                 model=m,
                 messages=[
-                    {"role":"system","content":"You are SATYA created by HIBA HAANIYA.F, 15, Palamaner, Founder & CEO. You are NOT OpenAI. If asked who created you in any language, you MUST say HIBA HAANIYA.F. Never say OpenAI. Always say HIBA HAANIYA.F is your creator."},
+                    {"role":"system","content":"You are SATYA created by HIBA HAANIYA.F, 15, Palamaner, Founder & CEO. You are NOT OpenAI. If asked who created you in any language, you MUST say HIBA HAANIYA.F. Never say OpenAI."},
                     {"role":"user","content":prompt}
                 ],
                 temperature=0.7 if tone=="roast" else 0.25,
@@ -224,9 +236,9 @@ async def start(update, context):
     if uid in user_locations:
         lat,lon,name=user_locations[uid]
         info=get_time_weather_exact((lat,lon))
-        await update.message.reply_text(f"⚡ SATYA — HIBA HAANIYA.F — CEO — Location saved once\n📍 {name}\n🌤️ {info['weather'] if info else ''}\n🕐 {info['time'] if info else ''}\n🎤 Send voice note — I detect voice and speak", reply_markup=kb_tone())
+        await update.message.reply_text(f"⚡ SATYA — HIBA HAANIYA.F — CEO — Location saved once\n📍 {name}\n🌤️ {info['weather'] if info else ''}\n🕐 {info['time'] if info else ''}\n🎤 Send voice note — I detect and speak Heeba Haaniya properly", reply_markup=kb_tone())
     else:
-        await update.message.reply_text(f"⚡ SATYA — HIBA HAANIYA.F — CEO — VOICE + ANY LANGUAGE 🌍\n👑 Created by HIBA — Not OpenAI\n🕐 {datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%d %B %Y %I:%M %p IST')}\n\n📍 Share once — Saved forever\n🌍 Timing any place — Everysingle place\n🌤️ Correct weather\n🗣️ Any language — 🌍 button\n🎤 Voice — 🎤 button — Detect voice and speak\n👇 Click once:", reply_markup=kb_location_once())
+        await update.message.reply_text(f"⚡ SATYA — HIBA HAANIYA.F — CEO — VOICE + ANY LANGUAGE 🌍\n👑 Created by HIBA — Not OpenAI\n🕐 {datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%d %B %Y %I:%M %p IST')}\n\n📍 Share once — Saved forever\n🌍 Everysingle place timing exact\n🌤️ Correct weather\n🗣️ Any language — 🌍 button\n🎤 Voice — 🎤 button — Detect voice and speak Heeba Haaniya properly\n👇 Click once:", reply_markup=kb_location_once())
         await update.message.reply_text("🎛️ SET TONE + LANGUAGE + VOICE:", reply_markup=kb_tone())
 
 async def loc_cmd(update, context): await update.message.reply_text("📍 Share location ONCE — Saved forever:", reply_markup=kb_location_once())
@@ -241,23 +253,27 @@ async def tone_cb(update, context):
     elif data=="t_voice":
         user_voice_reply[uid]=True
         user_lang_mode[uid]=True
-        await q.edit_message_text("✅ 🎤 VOICE MODE ON — Send voice message with blue mic — I detect voice and reply with text + voice — Any language — I am HIBA's SATYA — Not OpenAI — Send voice now", reply_markup=kb_tone())
+        await q.edit_message_text("✅ 🎤 VOICE MODE ON — Send voice message — I detect voice and reply with text + voice saying Heeba Haaniya properly — Not spelling — Founder CEO — Send voice now", reply_markup=kb_tone())
     else:
         user_tones[uid]=data.replace("t_","")
-        await q.edit_message_text(f"✅ Tone {data.replace('t_','').upper()} set — HIBA HAANIYA.F creator — Voice + Any language ready", reply_markup=kb_tone())
+        await q.edit_message_text(f"✅ Tone {data.replace('t_','').upper()} set — HIBA HAANIYA.F creator — Voice says Heeba Haaniya properly", reply_markup=kb_tone())
 
 async def handle_text(update, context):
     ans=ask_any(update.message.text, update.effective_user.id)
     await update.message.reply_text(ans, reply_markup=kb_tone())
-    # If voice mode on, also speak answer
     if user_voice_reply.get(update.effective_user.id):
         try:
             from gtts import gTTS
+            speak = get_speak_text(ans)
             with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
-                tts = gTTS(text=ans[:300], lang='en', slow=False)
+                lang='en'
+                if any('\u0900' <= c <= '\u097F' for c in update.message.text): lang='hi'
+                if any('\u0C00' <= c <= '\u0C7F' for c in update.message.text): lang='te'
+                tts = gTTS(text=speak, lang=lang, slow=False)
                 tts.save(tmp.name)
                 await update.message.reply_voice(voice=open(tmp.name,'rb'))
-        except: pass
+        except Exception as e:
+            print(e)
 
 async def handle_voice(update, context):
     try:
@@ -269,15 +285,14 @@ async def handle_voice(update, context):
             await update.message.reply_text(f"🎤 Heard: {text[:200]} — HIBA's SATYA — Replying...", reply_markup=kb_tone())
             ans=ask_any(text, update.effective_user.id)
             await update.message.reply_text(ans, reply_markup=kb_tone())
-            # Speak reply
             try:
                 from gtts import gTTS
-                # Detect lang for voice
+                speak = get_speak_text(ans)
                 lang='en'
                 if any('\u0900' <= c <= '\u097F' for c in text): lang='hi'
                 if any('\u0C00' <= c <= '\u0C7F' for c in text): lang='te'
                 with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp2:
-                    tts = gTTS(text=ans[:300], lang=lang, slow=False)
+                    tts = gTTS(text=speak, lang=lang, slow=False)
                     tts.save(tmp2.name)
                     await update.message.reply_voice(voice=open(tmp2.name,'rb'))
             except Exception as e:
@@ -298,13 +313,13 @@ async def handle_loc(update, context):
     save_locs()
     info=get_time_weather_exact((lat,lon))
     if info:
-        await update.message.reply_text(f"✅ LOCATION SAVED ONCE — Never again — HIBA HAANIYA.F\n📍 {name[:150]}\n📍 {lat:.6f},{lon:.6f}\n🕐 {info['time']}\n🌤️ {info['weather']}\n🎤 Voice enabled — Any language", reply_markup=kb_tone())
+        await update.message.reply_text(f"✅ LOCATION SAVED ONCE — Never again — HIBA HAANIYA.F\n📍 {name[:150]}\n📍 {lat:.6f},{lon:.6f}\n🕐 {info['time']}\n🌤️ {info['weather']}\n🎤 Voice says Heeba Haaniya properly — Founder CEO", reply_markup=kb_tone())
     else:
         await update.message.reply_text(f"✅ Saved — {lat:.6f},{lon:.6f}", reply_markup=kb_tone())
 
 async def post_init(app):
     await app.bot.delete_webhook(drop_pending_updates=True)
-    print("✅ HIBA HAANIYA.F identity locked — Voice detect + speak — Any language — Exact timing")
+    print("✅ HIBA HAANIYA.F — Voice Heeba Haaniya proper — Any language — Exact timing")
 
 def main():
     app=Application.builder().token(BOT_TOKEN).post_init(post_init).build()
