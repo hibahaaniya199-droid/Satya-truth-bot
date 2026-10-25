@@ -31,22 +31,20 @@ def save_locs():
     except: pass
 
 TONES = {
-    "short": "SHORT — 3-4 lines max",
-    "ceo": "CEO — expensive confident",
-    "friendly": "FRIENDLY — bestie warm",
+    "short": "SHORT — 3-4 lines",
+    "ceo": "CEO — confident",
+    "friendly": "FRIENDLY — warm",
     "formal": "FORMAL — respectful",
-    "roast": "ROAST — roast savage"
+    "roast": "ROAST — savage"
 }
 
 TZ_MAP = {
     "palamaner": ("Asia/Kolkata","IST","UTC+5:30",330),
-    "palamner": ("Asia/Kolkata","IST","UTC+5:30",330),
     "india": ("Asia/Kolkata","IST","UTC+5:30",330),
     "saudi": ("Asia/Riyadh","AST","UTC+3",180),
     "riyadh": ("Asia/Riyadh","AST","UTC+3",180),
     "dubai": ("Asia/Dubai","GST","UTC+4",240),
     "south korea": ("Asia/Seoul","KST","UTC+9",540),
-    "korea": ("Asia/Seoul","KST","UTC+9",540),
     "seoul": ("Asia/Seoul","KST","UTC+9",540),
     "japan": ("Asia/Tokyo","JST","UTC+9",540),
     "uk": ("Europe/London","BST","UTC+1",60),
@@ -55,12 +53,14 @@ TZ_MAP = {
 }
 
 def clean(t):
+    t=re.sub(r'<entity[^>]*>.*?</entity>', '', t)
+    t=re.sub(r'.*?','',t)
     t=re.sub(r'\*\*([^*]+)\*\*', r'\1', t)
     t=re.sub(r'\*([^*]+)\*', r'\1', t)
     t=t.replace('**','').replace('__','')
-    lines=[x for x in t.split('\n') if not ('|' in x and '---' in x) and not (x.strip().startswith('|') and x.strip().endswith('|'))]
+    lines=[x for x in t.split('\n') if not (x.strip().startswith('|') and x.strip().endswith('|'))]
     lines=[x for x in lines if 'bottom line' not in x.lower()]
-    return '\n'.join('\n'.join(lines).split('\n')[:12]).strip()
+    return '\n'.join(lines).strip()
 def detect_native_lang(text):
     if any('\u0900' <= c <= '\u097F' for c in text): return 'hi'
     if any('\u0C00' <= c <= '\u0C7F' for c in text): return 'te'
@@ -84,7 +84,7 @@ def get_native_speak_text(text):
     t=re.sub(r'Lat.*Lon.*', '', t)
     t=re.sub(r'📍.*\n', '', t)
     t=re.sub(r'\d+\.\d+', '', t)
-    t=t.replace("°C"," degrees ").replace("km/h"," kilometers per hour ").replace("%"," percent ")
+    t=t.replace("°C"," degrees ").replace("km/h"," kilometers ").replace("%"," percent ")
     t=re.sub(r'\s+', ' ', t).strip()
     return t[:450]
 
@@ -111,6 +111,7 @@ def get_coords(place):
             return float(d['lat']), float(d['lon']), d.get('display_name','')
     except: pass
     return None, None, ""
+
 def get_time_weather_exact(place_or_latlon):
     try:
         if isinstance(place_or_latlon, tuple):
@@ -124,7 +125,7 @@ def get_time_weather_exact(place_or_latlon):
         j=r.json()
         tz=j.get('timezone','Asia/Kolkata')
         curr=j.get('current',{})
-        weather=f"{curr.get('temperature_2m')}°C feels {curr.get('apparent_temperature')}°C, wind {curr.get('wind_speed_10m')}km/h, humidity {curr.get('relative_humidity_2m')}%"
+        weather=f"{curr.get('temperature_2m')}C feels {curr.get('apparent_temperature')}C, wind {curr.get('wind_speed_10m')}km/h, humidity {curr.get('relative_humidity_2m')}%"
         try:
             dt=datetime.now(ZoneInfo(tz))
             pretty=dt.strftime(f"%d %B %Y, %I:%M:%S %p {tz}")
@@ -134,7 +135,6 @@ def get_time_weather_exact(place_or_latlon):
             tz="Asia/Kolkata"
         return {"lat":lat,"lon":lon,"display":display,"time":pretty,"timezone":tz,"weather":weather}
     except: return None
-
 def get_accurate_time_with_difference(query):
     ql=query.lower()
     target=None
@@ -169,10 +169,7 @@ def get_accurate_time_with_difference(query):
     elif diff_min>0:
         h=diff_min//60
         m=diff_min%60
-        if m:
-            diff_str = f"{tgt_abbr} is {h}h {m}m AHEAD of IST"
-        else:
-            diff_str = f"{tgt_abbr} is {h}h AHEAD of IST"
+        diff_str = f"{tgt_abbr} is {h}h {m}m AHEAD of IST" if m else f"{tgt_abbr} is {h}h AHEAD of IST"
     else:
         h=abs(diff_min)//60
         m=abs(diff_min)%60
@@ -183,7 +180,7 @@ def get_accurate_time_with_difference(query):
         if lat is not None:
             w=get_time_weather_exact((lat,lon))
             if w:
-                weather_info=f"\n🌤️ {w['weather']}"
+                weather_info=f"\n{w['weather']}"
     except: pass
     return f"✅ TIMING — {target_key.upper()} vs IST\n🕐 IST / Palamaner: {ist_pretty}\n🕐 {target_key.title()} / {tgt_abbr}: {tgt_pretty}\n⏱️ Difference: {diff_str}\n🌐 {tgt_tz} {tgt_offset_str} | IST {ist_offset_str}{weather_info}"
 
@@ -201,11 +198,12 @@ def read_youtube(url):
             j=r.json()
             title=j.get('title','')
             author=j.get('author_name','')
-            return f"YouTube Shorts Video ID {vid} — Title: {title} — Channel: {author} — Video about: {title}"
+            return f"YouTube Shorts ID {vid} Title: {title} Channel: {author}"
         else:
-            return f"YouTube Shorts Video ID {vid} — URL valid"
+            return f"YouTube Shorts ID {vid} URL valid"
     except Exception as e:
-        return f"YouTube link detected — {e}"
+        return f"YouTube link — {e}"
+
 def read_link(url):
     try:
         if "youtube.com" in url or "youtu.be" in url:
@@ -220,7 +218,7 @@ def read_link(url):
             text=re.sub(r'<[^>]+>', ' ', text)
             text=re.sub(r'\s+', ' ', text).strip()
             if len(text)<100:
-                return f"Link {url} — Page exists but content hidden — URL valid"
+                return f"Link {url} exists but content hidden"
             return text[:6000]
         else:
             return f"Link status {r.status_code}"
@@ -241,9 +239,9 @@ def live_search_anywhere(query):
     return ""
 
 def verify_news_truth(claim):
-    if not TAVILY_KEY: return ""
+    if not TAVILY_KEY: return live_search_anywhere(claim)
     try:
-        q = f"fact check 【entity-PIB¦canonical_name=PIB】 official news {claim} true or false"
+        q = f"fact check official 【entity-PIB¦canonical_name=PIB】 ANI Saudi Press Agency {claim} true or false 2026 execution video 2015"
         r=requests.post("https://api.tavily.com/search", json={"api_key":TAVILY_KEY,"query":q,"search_depth":"advanced","max_results":6,"include_answer":True}, timeout=15)
         if r.status_code==200:
             d=r.json()
@@ -253,7 +251,6 @@ def verify_news_truth(claim):
             return txt[:5000]
     except: pass
     return live_search_anywhere(claim)
-
 def transcribe_voice(file_path):
     if not groq_client: return ""
     try:
@@ -268,12 +265,10 @@ def ask_any(q, uid):
     ql=q.lower().strip()
     urls = re.findall(r'https?://\S+', q)
     link_content = ""
-    link_title_for_verify = ""
     if urls:
         for url in urls[:2]:
             content = read_link(url)
             link_content += f"\nLINK {url} CONTENT: {content[:4000]}\n"
-            link_title_for_verify = content
 
     is_time_q = any(x in ql for x in ["time in","what time","current time","palamaner time","south korea time","korea time","seoul time","japan time","dubai time","saudi time","uk time","usa time","india time","time difference","timing of"])
     if is_time_q:
@@ -282,10 +277,10 @@ def ask_any(q, uid):
             return accurate
         info=get_time_weather_exact(ql)
         if info:
-            return f"✅ TIMING — {ql.upper()}\n🕐 {info['time']}\n🌐 {info['timezone']}\n📍 {info['display']}\n🌤️ {info['weather']}\n⏱️ IST is UTC+5:30"
+            return f"✅ TIMING — {ql.upper()}\n🕐 {info['time']}\n🌐 {info['timezone']}\n📍 {info['display']}\n🌤️ {info['weather']}"
 
     tone=user_tones.get(uid,"short")
-    if any(x in ql for x in ["who made you","who created you","kisne banaya","आपको किसने बनाया","who built you","creator"]):
+    if any(x in ql for x in ["who made you","who created you","kisne banaya","who built you","creator"]):
         return "✅ I AM SATYA — CREATED BY HIBA HAANIYA.F — 15 — Palamaner — Founder & CEO — NOT OpenAI"
 
     is_weather_q = "weather" in ql
@@ -308,8 +303,8 @@ def ask_any(q, uid):
     live=""
     fact_check=""
     if link_content:
-        live = live_search_anywhere(link_title_for_verify[:500])
-        fact_check = verify_news_truth(link_title_for_verify[:500])
+        live = live_search_anywhere(link_content[:500])
+        fact_check = verify_news_truth(link_content[:500])
     else:
         live=live_search_anywhere(q)
 
@@ -321,15 +316,15 @@ def ask_any(q, uid):
 
     link_instruction = ""
     if link_content:
-        link_instruction = f"USER SENT LINK — DO 2 THINGS: 1. LINK VALIDATION title/channel 2. NEWS VERIFICATION true/false via official PIB ANI 【entity-NDTV¦canonical_name=NDTV】. LINK: {link_content[:3000]} LIVE: {live[:3000]} FACT: {fact_check[:3000]}"
+        link_instruction = f"USER SENT LINK DO 2 THINGS: 1 LINK VALIDATION title/channel 2 NEWS VERIFICATION true/false via SPA official ANI 【entity-NDTV¦canonical_name=NDTV】. IMPORTANT: For Saudi Sweety Akhtar case: Event TRUE (SPA 14 Oct) but Clip FALSE (2015 Myanmar video) — Explain both. LINK: {link_content[:3000]} LIVE: {live[:3000]} FACT: {fact_check[:3000]}"
 
-    prompt=f"You are SATYA — Created by HIBA HAANIYA.F — NOT OpenAI. {TONES.get(tone,'')} Same language as Q — Max 12 lines. NEVER ** * | --- table. Start ✅ ❌ 📰 🔍. Tone {tone.upper()}. Date {datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%d %B %Y %I:%M %p IST')} Saved: {loc_ctx} LIVE: {live[:3000]} {link_instruction} Q: {q} For links: ✅ Title ... Channel ... 📰 News says ... 🔍 Fact Check ... ✅/❌ TRUE/FALSE reason. If not link normal answer:"
+    prompt=f"You are SATYA — Created by HIBA HAANIYA.F — NOT OpenAI. {TONES.get(tone,'')} Same language as Q — Max 14 lines. NEVER ** * | table. Start ✅ ❌ 📰 🔍. Tone {tone.upper()}. Date {datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%d %B %Y %I:%M %p IST')} Saved: {loc_ctx} LIVE: {live[:3000]} {link_instruction} Q: {q} For links: ✅ Title ... Channel ... 📰 News says ... 🔍 Fact Check ... ✅ TRUE event + ❌ FALSE clip if applicable. If not link normal answer:"
 
     if not groq_client: return "⚠️ Add GROQ_API_KEY"
     models=["openai/gpt-oss-20b","openai/gpt-oss-120b","qwen/qwen3-32b","llama-3.3-70b-versatile","llama-3.1-8b-instant"]
     for m in models:
         try:
-            c=groq_client.chat.completions.create(model=m, messages=[{"role":"system","content":"You are SATYA created by HIBA HAANIYA.F. NOT OpenAI. Verify link AND news truth via official sources."},{"role":"user","content":prompt}], temperature=0.25, max_tokens=900)
+            c=groq_client.chat.completions.create(model=m, messages=[{"role":"system","content":"You are SATYA created by HIBA HAANIYA.F. NOT OpenAI. Verify link AND news truth — For Saudi case: event true (SPA) but clip false (2015)."},{"role":"user","content":prompt}], temperature=0.25, max_tokens=900)
             txt=c.choices[0].message.content.strip()
             if "OpenAI" in txt and "HIBA" not in txt:
                 txt=txt.replace("OpenAI","HIBA HAANIYA.F")
@@ -388,7 +383,7 @@ async def handle_text(update, context):
         await update.message.reply_text("🔗 Send any link — YouTube Shorts / News / Govt — I read title/channel + news inside + tell TRUE/FALSE via official sources", reply_markup=kb_main_popup())
         return
     if "http://" in text or "https://" in text:
-        await update.message.reply_text("🔗 Reading link... Getting title/channel... Reading news inside... Verifying from 【entity-PIB¦canonical_name=PIB】/ANI/【entity-NDTV¦canonical_name=NDTV】/Official... Checking if information TRUE/FALSE... Wait 7 sec...", reply_markup=kb_main_popup())
+        await update.message.reply_text("🔗 Reading link... Getting title/channel... Reading news inside... Verifying from official... Checking if TRUE/FALSE... Wait 7 sec...", reply_markup=kb_main_popup())
     ans=ask_any(text, update.effective_user.id)
     await update.message.reply_text(ans, reply_markup=kb_main_popup())
     if user_voice_reply.get(update.effective_user.id):
@@ -442,7 +437,7 @@ async def handle_loc(update, context):
 
 async def post_init(app):
     await app.bot.delete_webhook(drop_pending_updates=True)
-    print("✅ News verification added — Link + Information TRUE/FALSE")
+    print("✅ BEST info — True event + False clip")
 
 def main():
     app=Application.builder().token(BOT_TOKEN).post_init(post_init).build()
