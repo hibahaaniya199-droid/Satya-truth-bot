@@ -61,7 +61,6 @@ def clean(t):
     lines=[x for x in t.split('\n') if not ('|' in x and '---' in x) and not (x.strip().startswith('|') and x.strip().endswith('|'))]
     lines=[x for x in lines if 'bottom line' not in x.lower()]
     return '\n'.join('\n'.join(lines).split('\n')[:12]).strip()
-
 def detect_native_lang(text):
     if any('\u0900' <= c <= '\u097F' for c in text): return 'hi'
     if any('\u0C00' <= c <= '\u0C7F' for c in text): return 'te'
@@ -87,7 +86,9 @@ def get_native_speak_text(text):
     t=re.sub(r'\d+\.\d+', '', t)
     t=t.replace("°C"," degrees ").replace("km/h"," kilometers per hour ").replace("%"," percent ")
     t=re.sub(r'\s+', ' ', t).strip()
-    return t[:450]def kb_tone():
+    return t[:450]
+
+def kb_tone():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("⚡ SHORT", callback_data="t_short"), InlineKeyboardButton("👑 CEO", callback_data="t_ceo")],
         [InlineKeyboardButton("💖 FRIENDLY", callback_data="t_friendly"), InlineKeyboardButton("🎓 FORMAL", callback_data="t_formal")],
@@ -110,7 +111,6 @@ def get_coords(place):
             return float(d['lat']), float(d['lon']), d.get('display_name','')
     except: pass
     return None, None, ""
-
 def get_time_weather_exact(place_or_latlon):
     try:
         if isinstance(place_or_latlon, tuple):
@@ -170,17 +170,13 @@ def get_accurate_time_with_difference(query):
         h=diff_min//60
         m=diff_min%60
         if m:
-            diff_str = f"{tgt_abbr} is {h}h {m}m AHEAD of IST — IST {now_ist.strftime('%I:%M %p')} = {tgt_abbr} {now_tgt.strftime('%I:%M %p')}"
+            diff_str = f"{tgt_abbr} is {h}h {m}m AHEAD of IST"
         else:
             diff_str = f"{tgt_abbr} is {h}h AHEAD of IST"
     else:
-        diff_min_abs = abs(diff_min)
-        h=diff_min_abs//60
-        m=diff_min_abs%60
-        if m:
-            diff_str = f"{tgt_abbr} is {h}h {m}m BEHIND IST"
-        else:
-            diff_str = f"{tgt_abbr} is {h}h BEHIND IST"
+        h=abs(diff_min)//60
+        m=abs(diff_min)%60
+        diff_str = f"{tgt_abbr} is {h}h {m}m BEHIND IST" if m else f"{tgt_abbr} is {h}h BEHIND IST"
     weather_info=""
     try:
         lat, lon, disp = get_coords(target_key)
@@ -210,7 +206,6 @@ def read_youtube(url):
             return f"YouTube Shorts Video ID {vid} — URL valid"
     except Exception as e:
         return f"YouTube link detected — {e}"
-
 def read_link(url):
     try:
         if "youtube.com" in url or "youtu.be" in url:
@@ -267,7 +262,9 @@ def transcribe_voice(file_path):
             if isinstance(transcription, str):
                 return transcription
             return getattr(transcription, 'text', str(transcription))
-    except: return ""def ask_any(q, uid):
+    except: return ""
+
+def ask_any(q, uid):
     ql=q.lower().strip()
     urls = re.findall(r'https?://\S+', q)
     link_content = ""
@@ -288,11 +285,7 @@ def transcribe_voice(file_path):
             return f"✅ TIMING — {ql.upper()}\n🕐 {info['time']}\n🌐 {info['timezone']}\n📍 {info['display']}\n🌤️ {info['weather']}\n⏱️ IST is UTC+5:30"
 
     tone=user_tones.get(uid,"short")
-    if any(x in ql for x in ["who made you","who created you","kisne banaya","आपको किसने बनाया","who built you","creator","ఎవరు"]):
-        if "आपको किसने बनाया" in q or "किसने बनाया" in q or "तुम्हें" in q:
-            return "✅ मैं SATYA हूँ — मुझे HIBA HAANIYA.F ने बनाया है — 15 साल — पलमनेर 517408 — Founder & CEO — मैं OpenAI नहीं हूँ"
-        if "ఎవరు" in q:
-            return "✅ నేను SATYA — నన్ను HIBA HAANIYA.F సృష్టించారు"
+    if any(x in ql for x in ["who made you","who created you","kisne banaya","आपको किसने बनाया","who built you","creator"]):
         return "✅ I AM SATYA — CREATED BY HIBA HAANIYA.F — 15 — Palamaner — Founder & CEO — NOT OpenAI"
 
     is_weather_q = "weather" in ql
@@ -328,15 +321,15 @@ def transcribe_voice(file_path):
 
     link_instruction = ""
     if link_content:
-        link_instruction = f"USER SENT LINK — YOU MUST DO 2 THINGS: 1. LINK VALIDATION — Is link valid? Tell title/channel. 2. NEWS INFORMATION VERIFICATION — Read what news says inside link and tell if that INFORMATION is TRUE or FALSE by checking official sources 【entity-PIB¦canonical_name=PIB】, ANI, 【entity-NDTV¦canonical_name=NDTV】, 【entity-Hindu¦canonical_name=The Hindu】, 【entity-Reuters¦canonical_name=Reuters】, 【entity-BBC¦canonical_name=BBC】, Govt. If yes TRUE — If no FALSE FAKE — If partial PARTIALLY TRUE. Simple words. LINK CONTENT: {link_content[:4000]} LIVE SEARCH: {live[:4000]} FACT CHECK: {fact_check[:4000]}"
+        link_instruction = f"USER SENT LINK — DO 2 THINGS: 1. LINK VALIDATION title/channel 2. NEWS VERIFICATION true/false via official PIB ANI 【entity-NDTV¦canonical_name=NDTV】. LINK: {link_content[:3000]} LIVE: {live[:3000]} FACT: {fact_check[:3000]}"
 
-    prompt=f"You are SATYA — Created by HIBA HAANIYA.F — NOT OpenAI. {TONES.get(tone,'')} Same language as Q — Simple words — Max 12 lines. Rules: NEVER ** * | --- table. Start ✅ ❌ ⚠️ 📰 🔍. Tone {tone.upper()}. Date {datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%d %B %Y %I:%M %p IST')} Saved: {loc_ctx} LIVE: {live[:3500]} {link_instruction} Q: {q} Answer format for links: ✅ Title: ... Channel: ... 📰 News says: ... 🔍 Fact Check: ... ✅/❌ TRUE/FALSE — Reason. If not link, normal answer as SATYA:"
+    prompt=f"You are SATYA — Created by HIBA HAANIYA.F — NOT OpenAI. {TONES.get(tone,'')} Same language as Q — Max 12 lines. NEVER ** * | --- table. Start ✅ ❌ 📰 🔍. Tone {tone.upper()}. Date {datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%d %B %Y %I:%M %p IST')} Saved: {loc_ctx} LIVE: {live[:3000]} {link_instruction} Q: {q} For links: ✅ Title ... Channel ... 📰 News says ... 🔍 Fact Check ... ✅/❌ TRUE/FALSE reason. If not link normal answer:"
 
     if not groq_client: return "⚠️ Add GROQ_API_KEY"
     models=["openai/gpt-oss-20b","openai/gpt-oss-120b","qwen/qwen3-32b","llama-3.3-70b-versatile","llama-3.1-8b-instant"]
     for m in models:
         try:
-            c=groq_client.chat.completions.create(model=m, messages=[{"role":"system","content":"You are SATYA created by HIBA HAANIYA.F. NOT OpenAI. For links, you must verify BOTH link validity AND news information truth via official sources."},{"role":"user","content":prompt}], temperature=0.7 if tone=="roast" else 0.25, max_tokens=900)
+            c=groq_client.chat.completions.create(model=m, messages=[{"role":"system","content":"You are SATYA created by HIBA HAANIYA.F. NOT OpenAI. Verify link AND news truth via official sources."},{"role":"user","content":prompt}], temperature=0.25, max_tokens=900)
             txt=c.choices[0].message.content.strip()
             if "OpenAI" in txt and "HIBA" not in txt:
                 txt=txt.replace("OpenAI","HIBA HAANIYA.F")
@@ -346,13 +339,12 @@ def transcribe_voice(file_path):
             continue
     if live: return clean(f"Live: {live[:500]}")
     return "⚠️ Busy — Wait 10 sec"
-
 async def start(update, context):
     uid=update.effective_user.id
     if uid in user_locations:
         lat,lon,name=user_locations[uid]
         info=get_time_weather_exact((lat,lon))
-        await update.message.reply_text(f"⚡ SATYA — HIBA HAANIYA.F — CEO — Location saved\n📍 {name[:120]}\n🌤️ {info['weather'] if info else ''}\n🕐 {info['time'] if info else ''}\n\n🔗 Send any link — YouTube Shorts — I read news inside + tell TRUE/FALSE of information", reply_markup=kb_main_popup())
+        await update.message.reply_text(f"⚡ SATYA — HIBA HAANIYA.F — CEO — Location saved\n📍 {name[:120]}\n🌤️ {info['weather'] if info else ''}\n🕐 {info['time'] if info else ''}\n\n🔗 Send any link — YouTube Shorts — I read news inside + tell TRUE/FALSE", reply_markup=kb_main_popup())
     else:
         await update.message.reply_text(f"⚡ SATYA — HIBA HAANIYA.F — CEO 🌍\n👑 Created by HIBA — Not OpenAI\n🕐 {datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%d %B %Y %I:%M %p IST')}\n\n📍 Share location ONCE\n🔗 Send any link — I read news + tell if information TRUE/FALSE", reply_markup=kb_location_once())
 
@@ -393,10 +385,10 @@ async def handle_text(update, context):
         await update.message.reply_text("✅ 🌍 ANY LANGUAGE ON", reply_markup=kb_main_popup())
         return
     if text == "🔗 Check Link":
-        await update.message.reply_text("🔗 Send any link — YouTube Shorts / News / Govt — I read title/channel + news inside + tell TRUE/FALSE of information via official sources", reply_markup=kb_main_popup())
+        await update.message.reply_text("🔗 Send any link — YouTube Shorts / News / Govt — I read title/channel + news inside + tell TRUE/FALSE via official sources", reply_markup=kb_main_popup())
         return
     if "http://" in text or "https://" in text:
-        await update.message.reply_text("🔗 Reading link... Getting title/channel... Reading news inside... Verifying from PIB/ANI/NDTV/Official... Checking if information TRUE/FALSE... Wait 7 sec...", reply_markup=kb_main_popup())
+        await update.message.reply_text("🔗 Reading link... Getting title/channel... Reading news inside... Verifying from 【entity-PIB¦canonical_name=PIB】/ANI/【entity-NDTV¦canonical_name=NDTV】/Official... Checking if information TRUE/FALSE... Wait 7 sec...", reply_markup=kb_main_popup())
     ans=ask_any(text, update.effective_user.id)
     await update.message.reply_text(ans, reply_markup=kb_main_popup())
     if user_voice_reply.get(update.effective_user.id):
