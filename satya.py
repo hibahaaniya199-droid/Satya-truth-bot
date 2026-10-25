@@ -1,4 +1,4 @@
-import os, requests, re, json
+import os, requests, re, json, tempfile
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup
@@ -12,7 +12,7 @@ groq_client = Groq(api_key=GROQ_KEY) if GROQ_KEY else None
 
 user_tones = {}
 user_locations = {}
-user_lang_mode = {}  # ANY LANGUAGE MODE
+user_lang_mode = {}
 LOC_FILE = "/tmp/satya_locations.json"
 
 try:
@@ -30,33 +30,20 @@ def save_locs():
     except: pass
 
 TONES = {
-    "short": "SHORT — 3-4 lines max sharp",
+    "short": "SHORT — 3-4 lines max",
     "ceo": "CEO — expensive confident",
     "friendly": "FRIENDLY — bestie warm",
-    "formal": "FORMAL — respectful formal",
-    "roast": "ROAST — roast stupid Q savage funny, but for real news verify seriously"
+    "formal": "FORMAL — respectful",
+    "roast": "ROAST — roast stupid Q savage funny"
 }
 
-# EVERYSINGLE PLACE IN WORLD — NEVER MISMATCH — 400+ TIMEZONES — EVERY COUNTRY CITY VILLAGE
 TIMEZONE_DB = {
-    # INDIA EVERY STATE CITY VILLAGE
-    "palamaner":"Asia/Kolkata","chittoor":"Asia/Kolkata","tirupati":"Asia/Kolkata","palamner":"Asia/Kolkata","gangavaram":"Asia/Kolkata","gantavoor":"Asia/Kolkata","basavanna katta":"Asia/Kolkata","golbodi":"Asia/Kolkata","faiza":"Asia/Kolkata",
-    "india":"Asia/Kolkata","delhi":"Asia/Kolkata","mumbai":"Asia/Kolkata","kolkata":"Asia/Kolkata","chennai":"Asia/Kolkata","bangalore":"Asia/Kolkata","hyderabad":"Asia/Kolkata","andhra":"Asia/Kolkata","telangana":"Asia/Kolkata","kerala":"Asia/Kolkata",
-    # MIDDLE EAST
-    "saudi":"Asia/Riyadh","saudi arabia":"Asia/Riyadh","riyadh":"Asia/Riyadh","jeddah":"Asia/Riyadh","mecca":"Asia/Riyadh","medina":"Asia/Riyadh",
-    "dubai":"Asia/Dubai","uae":"Asia/Dubai","abu dhabi":"Asia/Dubai","qatar":"Asia/Qatar","doha":"Asia/Qatar","kuwait":"Asia/Kuwait","bahrain":"Asia/Bahrain","oman":"Asia/Muscat",
-    # EAST ASIA — EVERY PLACE
-    "south korea":"Asia/Seoul","korea":"Asia/Seoul","seoul":"Asia/Seoul","busan":"Asia/Seoul","incheon":"Asia/Seoul","daegu":"Asia/Seoul","대한민국":"Asia/Seoul",
-    "japan":"Asia/Tokyo","tokyo":"Asia/Tokyo","osaka":"Asia/Tokyo","kyoto":"Asia/Tokyo",
-    "china":"Asia/Shanghai","beijing":"Asia/Shanghai","shanghai":"Asia/Shanghai","hong kong":"Asia/Hong_Kong","singapore":"Asia/Singapore","malaysia":"Asia/Kuala_Lumpur","kuala lumpur":"Asia/Kuala_Lumpur",
-    "thailand":"Asia/Bangkok","bangkok":"Asia/Bangkok","philippines":"Asia/Manila","manila":"Asia/Manila","indonesia":"Asia/Jakarta","jakarta":"Asia/Jakarta",
-    # EUROPE — EVERY PLACE
-    "uk":"Europe/London","london":"Europe/London","england":"Europe/London","paris":"Europe/Paris","france":"Europe/Paris","germany":"Europe/Berlin","berlin":"Europe/Berlin","italy":"Europe/Rome","rome":"Europe/Rome","spain":"Europe/Madrid","madrid":"Europe/Madrid","turkey":"Europe/Istanbul","istanbul":"Europe/Istanbul",
-    # AMERICA — EVERY PLACE
-    "usa":"America/New_York","us":"America/New_York","new york":"America/New_York","america":"America/New_York","california":"America/Los_Angeles","los angeles":"America/Los_Angeles","texas":"America/Chicago","chicago":"America/Chicago",
-    "canada":"America/Toronto","toronto":"America/Toronto","brazil":"America/Sao_Paulo","australia":"Australia/Sydney","sydney":"Australia/Sydney","melbourne":"Australia/Melbourne",
-    # AFRICA
-    "egypt":"Africa/Cairo","cairo":"Africa/Cairo","south africa":"Africa/Johannesburg","nigeria":"Africa/Lagos"
+    "palamaner":"Asia/Kolkata","palamner":"Asia/Kolkata","chittoor":"Asia/Kolkata","tirupati":"Asia/Kolkata","faiza":"Asia/Kolkata",
+    "india":"Asia/Kolkata","delhi":"Asia/Kolkata","mumbai":"Asia/Kolkata",
+    "saudi":"Asia/Riyadh","riyadh":"Asia/Riyadh","dubai":"Asia/Dubai","uae":"Asia/Dubai","qatar":"Asia/Qatar",
+    "south korea":"Asia/Seoul","korea":"Asia/Seoul","seoul":"Asia/Seoul","대한민국":"Asia/Seoul","busan":"Asia/Seoul",
+    "japan":"Asia/Tokyo","tokyo":"Asia/Tokyo","china":"Asia/Shanghai","singapore":"Asia/Singapore",
+    "uk":"Europe/London","london":"Europe/London","paris":"Europe/Paris","berlin":"Europe/Berlin","usa":"America/New_York","new york":"America/New_York","australia":"Australia/Sydney"
 }
 
 def clean(t):
@@ -64,7 +51,7 @@ def clean(t):
     t=re.sub(r'\*([^*]+)\*', r'\1', t)
     t=t.replace('**','').replace('__','')
     lines=[x for x in t.split('\n') if not ('|' in x and '---' in x) and not (x.strip().startswith('|') and x.strip().endswith('|'))]
-    lines=[x for x in lines if 'bottom line' not in x.lower() and 'believe live' not in x.lower()]
+    lines=[x for x in lines if 'bottom line' not in x.lower()]
     return '\n'.join('\n'.join(lines).split('\n')[:7]).strip()
 
 def kb_tone():
@@ -72,11 +59,11 @@ def kb_tone():
         [InlineKeyboardButton("⚡ SHORT", callback_data="t_short"), InlineKeyboardButton("👑 CEO", callback_data="t_ceo")],
         [InlineKeyboardButton("💖 FRIENDLY", callback_data="t_friendly"), InlineKeyboardButton("🎓 FORMAL", callback_data="t_formal")],
         [InlineKeyboardButton("🔥 ROAST", callback_data="t_roast")],
-        [InlineKeyboardButton("🌍 Speak Any Language — Click", callback_data="t_lang")]  # ANY LANGUAGE BUTTON
+        [InlineKeyboardButton("🌍 Any Language", callback_data="t_lang"), InlineKeyboardButton("🎤 Speak — Voice", callback_data="t_voice")]
     ])
 
 def kb_location_once():
-    btn = KeyboardButton("📍 Share Location Once — Correct Weather", request_location=True)
+    btn = KeyboardButton("📍 Share Location Once", request_location=True)
     return ReplyKeyboardMarkup([[btn]], resize_keyboard=True, one_time_keyboard=True)
 
 def get_coords(place):
@@ -92,11 +79,10 @@ def get_time_weather_exact(place_or_latlon):
     try:
         if isinstance(place_or_latlon, tuple):
             lat, lon = place_or_latlon
-            display = ""
+            display=""
         else:
             lat, lon, display = get_coords(place_or_latlon)
             if lat is None:
-                # Try TIMEZONE_DB for everysingle place
                 ql=str(place_or_latlon).lower()
                 tz_found=None
                 for k,v in TIMEZONE_DB.items():
@@ -106,22 +92,20 @@ def get_time_weather_exact(place_or_latlon):
                 if tz_found:
                     dt=datetime.now(ZoneInfo(tz_found))
                     pretty=dt.strftime(f"%d %B %Y, %I:%M:%S %p {tz_found}")
-                    return {"lat":0,"lon":0,"display":place_or_latlon,"time":pretty,"timezone":tz_found,"weather":"Use location for weather"}
+                    return {"lat":0,"lon":0,"display":place_or_latlon,"time":pretty,"timezone":tz_found,"weather":"Use saved location for weather"}
                 return None
-        # Get timezone
         r=requests.get(f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m,apparent_temperature,wind_speed_10m,relative_humidity_2m&timezone=auto", timeout=8)
         if r.status_code!=200: return None
         j=r.json()
         tz=j.get('timezone','Asia/Kolkata')
         curr=j.get('current',{})
         weather=f"{curr.get('temperature_2m')}°C feels {curr.get('apparent_temperature')}°C, wind {curr.get('wind_speed_10m')}km/h, humidity {curr.get('relative_humidity_2m')}%"
-        # EXACT TIMING — REAL CLOCK — NOT ROUNDED — FIX 4:45 BUG
         try:
             dt=datetime.now(ZoneInfo(tz))
             pretty=dt.strftime(f"%d %B %Y, %I:%M:%S %p {tz}")
         except:
             dt=datetime.now(ZoneInfo("Asia/Kolkata"))
-            pretty=dt.strftime(f"%d %B %Y, %I:%M:%S %p Asia/Kolkata")
+            pretty=dt.strftime(f"%d %B %Y, %I:%M:%S %p IST")
             tz="Asia/Kolkata"
         return {"lat":lat,"lon":lon,"display":display,"time":pretty,"timezone":tz,"weather":weather}
     except Exception as e:
@@ -141,64 +125,83 @@ def live_search_anywhere(query):
     except: pass
     return ""
 
+def transcribe_voice(file_path):
+    # DETECT VOICE AND SPEAK — ANY LANGUAGE — 【entity-WHISPER¦canonical_name=Whisper】
+    if not groq_client: return ""
+    try:
+        with open(file_path, "rb") as f:
+            tr=groq_client.audio.transcriptions.create(model="【entity-whisper¦canonical_name=Whisper】-large-v3", file=(file_path, f.read()), response_format="text")
+            return tr if isinstance(tr,str) else tr.text if hasattr(tr,'text') else str(tr)
+    except Exception as e:
+        print(f"transcribe fail {e}")
+        return ""
+
 def ask_any(q, uid):
     ql=q.lower().strip()
     tone=user_tones.get(uid,"short")
     lang_mode=user_lang_mode.get(uid,False)
-    tone_ins=TONES.get(tone, TONES["short"])
 
-    if any(x in ql for x in ["who created you","who made you"]):
-        # ANY LANGUAGE — SPEAK USER'S LANGUAGE
-        if "తెలుగు" in q or "telugu" in ql: return "👑 నేను SATYA — HIBA HAANIYA.F చేత సృష్టించబడ్డాను — 15 — పలమనేరు CEO"
-        if "हिंदी" in q or "hindi" in ql: return "👑 मैं SATYA हूँ — HIBA HAANIYA.F ने बनाया — 15 — पलमनेर CEO"
-        if "اردو" in q or "ur" in ql: return "👑 میں SATYA ہوں — HIBA HAANIYA.F نے بنایا — 15 — پلامنیر CEO"
-        return "👑 I AM SATYA — CREATED BY HIBA HAANIYA.F — 15 — Palamaner — CEO"
+    # ===== IDENTITY LOCK — EVERYSINGLE LANGUAGE — MUST SAY HIBA HAANIYA.F — NEVER OPENAI =====
+    if any(x in ql for x in ["who made you","who created you","kisne banaya","आपको किसने बनाया","निम्‍मनि सृष्टించారు","who built you","your creator","तुम्हें किसने बनाया","creator"]):
+        if "आपको किसने बनाया" in q or "किसने बनाया" in q or "तुम्हें" in q:
+            return "✅ मैं SATYA हूँ — मुझे HIBA HAANIYA.F ने बनाया है — 15 साल — पलमनेर 517408 — Founder & CEO — मैं OpenAI नहीं हूँ — मैं HIBA की हूँ"
+        if "telugu" in ql or "తెలుగు" in q or "ఎవరు" in q:
+            return "✅ నేను SATYA — నన్ను HIBA HAANIYA.F సృష్టించారు — 15 ఏళ్లు — పలమనేరు CEO — నేను OpenAI కాదు"
+        if "اردو" in q or "ur" in ql:
+            return "✅ میں SATYA ہوں — مجھے HIBA HAANIYA.F نے بنایا — 15 سال — پلامنیر CEO — میں OpenAI نہیں ہوں"
+        return "✅ I AM SATYA — CREATED BY HIBA HAANIYA.F — 15 — Palamaner 517408 — Founder & CEO — I am NOT OpenAI — I am HIBA's"
 
-    is_time_q = any(x in ql for x in ["time in","timing","what time","current time","time at","timing of"])
+    is_time_q = any(x in ql for x in ["time in","timing","what time","current time"])
     is_weather_q = "weather" in ql
-    is_loc_q = any(x in ql for x in ["where is","location of","locate","exact location"])
+    is_loc_q = any(x in ql for x in ["where is","location of","locate"])
 
     if is_time_q or is_weather_q or is_loc_q:
         place = ql
         for p in ["time in","timing of","what time in","current time in","weather in","weather at","where is","location of","locate","exact location of","timing","time","weather","where","location"]:
             place=place.replace(p,"")
         place=place.strip() or "India"
-        if is_weather_q and uid in user_locations and any(x in ql for x in ["my location","my weather","here","my place"]):
+        if is_weather_q and uid in user_locations and any(x in ql for x in ["my location","my weather","here"]):
             lat,lon,name=user_locations[uid]
             info=get_time_weather_exact((lat,lon))
             if info:
                 return f"✅ CORRECT WEATHER — Saved once\n📍 {name}\n📍 {lat:.6f},{lon:.6f}\n🕐 {info['time']}\n🌤️ {info['weather']}"
         info=get_time_weather_exact(place)
         if info:
-            if is_time_q: return f"✅ TIMING OF {place.upper()} — EVERYSINGLE PLACE\n🕐 {info['time']}\n📍 {info['display'] or place}\n🌐 {info['timezone']}\n📍 {info['lat']:.6f},{info['lon']:.6f}\n🌤️ {info['weather']}"
-            if is_weather_q: return f"✅ CORRECT WEATHER — {place.upper()}\n🌤️ {info['weather']}\n🕐 {info['time']}\n📍 {info['display']}\n📍 {info['lat']:.6f},{info['lon']:.6f}"
-            if is_loc_q: return f"✅ PRECISE LOCATION — {place.upper()}\n📍 {info['display']}\n📍 {info['lat']:.6f},{info['lon']:.6f}\n🕐 {info['time']}\n🌤️ {info['weather']}"
+            if is_time_q: return f"✅ TIMING OF {place.upper()}\n🕐 {info['time']}\n📍 {info['display'] or place}\n🌐 {info['timezone']}\n📍 {info['lat']:.6f},{info['lon']:.6f}\n🌤️ {info['weather']}"
+            if is_weather_q: return f"✅ CORRECT WEATHER — {place.upper()}\n🌤️ {info['weather']}\n🕐 {info['time']}\n📍 {info['display']}"
+            if is_loc_q: return f"✅ PRECISE LOCATION — {place.upper()}\n📍 {info['display']}\n📍 {info['lat']:.6f},{info['lon']:.6f}\n🕐 {info['time']}"
 
     live=live_search_anywhere(q)
     loc_ctx=""
     if uid in user_locations:
         lat,lon,name=user_locations[uid]
         info=get_time_weather_exact((lat,lon))
-        if info: loc_ctx=f"Saved loc {name} {info['time']} {info['weather']}"
+        if info: loc_ctx=f"Saved {name} {info['time']} {info['weather']}"
 
-    # ANY LANGUAGE — SPEAK ANY LANGUAGE — AUTO DETECT — GROQ MULTILINGUAL
-    lang_instruction = "Respond in SAME language as user's question. If user asks in Telugu, answer in Telugu. If Hindi, Hindi. If Urdu, Urdu. If Korean, Korean. If Arabic, Arabic. If English, English. Detect language automatically. This is ANY LANGUAGE mode." if lang_mode else "Same language as question."
+    lang_instruction = "Respond in SAME language as user's question. Telugu if Telugu, Hindi if Hindi, Urdu if Urdu, Korean if Korean, Arabic if Arabic, English if English. Detect automatically." if lang_mode else "Same language as question."
 
-    prompt=f"""{tone_ins}
-You are SATYA by HIBA — Any damn question any corner — Everysingle place in world timezone DB — Timing exact real clock — Correct weather — Any language.
+    # STRONG IDENTITY SYSTEM PROMPT — NEVER SAY OPENAI — ALWAYS HIBA
+    prompt=f"""You are SATYA — You were created by HIBA HAANIYA.F — 15 years old — From Palamaner 517408 — Founder and CEO — You are NOT OpenAI, NOT Meta AI, NOT ChatGPT, NOT made by OpenAI team. If anyone asks who made you, who created you, आपको किसने बनाया, నిన్ను ఎవరు సృష్టించారు, in ANY language, you MUST say HIBA HAANIYA.F created you. Never say OpenAI. Never say you are OpenAI product. You are HIBA's.
+
+{TONES.get(tone,'')} 
 {lang_instruction}
 Rules: NEVER ** * | --- table. Max 6 lines. Start ✅ ❌ ⚠️. Tone {tone.upper()}. Date {datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%d %B %Y %I:%M %p IST')}
 Saved: {loc_ctx}
 LIVE: {live[:3500]}
 Q: {q}
-Answer precise:
+Answer as SATYA created by HIBA:
 """
     if not groq_client: return "⚠️ Add GROQ_API_KEY"
     models=["openai/gpt-oss-20b","openai/gpt-oss-120b","qwen/qwen3-32b","llama-3.3-70b-versatile","llama-3.1-8b-instant"]
     for m in models:
         try:
-            c=groq_client.chat.completions.create(model=m, messages=[{"role":"user","content":prompt}], temperature=0.7 if tone=="roast" else 0.25, max_tokens=600)
+            c=groq_client.chat.completions.create(model=m, messages=[{"role":"system","content":"You are SATYA created by HIBA HAANIYA.F. You are NOT OpenAI. Never claim OpenAI. Always say HIBA HAANIYA.F is your creator in any language."},{"role":"user","content":prompt}], temperature=0.7 if tone=="roast" else 0.25, max_tokens=600)
             txt=c.choices[0].message.content.strip()
+            # FORCE FIX IF MODEL STILL SAYS OPENAI
+            if "OpenAI" in txt and "HIBA" not in txt:
+                txt=txt.replace("OpenAI द्वारा बनाया गया हूँ","HIBA HAANIYA.F द्वारा बनाया गया हूँ").replace("OpenAI","HIBA HAANIYA.F")
+                if "HIBA" not in txt:
+                    txt="✅ मैं SATYA हूँ — मुझे HIBA HAANIYA.F ने बनाया — 15 — Palamaner CEO — "+txt
             if len(txt)>15: return clean(txt)
         except Exception as e:
             print(e)
@@ -211,29 +214,49 @@ async def start(update, context):
     if uid in user_locations:
         lat,lon,name=user_locations[uid]
         info=get_time_weather_exact((lat,lon))
-        w=info['weather'] if info else "saved"
-        await update.message.reply_text(f"⚡ SATYA — Location saved once — Not asking again\n📍 {name}\n🌤️ {w}\n🕐 {info['time'] if info else ''}\n🌍 Everysingle place — Timing exact — Correct weather — Any language\nUse /location to change", reply_markup=kb_tone())
+        await update.message.reply_text(f"⚡ SATYA — Location saved once — HIBA HAANIYA.F — CEO\n📍 {name}\n🌤️ {info['weather'] if info else ''}\n🕐 {info['time'] if info else ''}\n🎤 Voice enabled — Send voice note", reply_markup=kb_tone())
     else:
-        await update.message.reply_text(f"⚡ SATYA — EVERYSINGLE PLACE + ANY LANGUAGE 🌍\n👑 HIBA — CEO\n🕐 {datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%d %B %Y %I:%M %p IST')}\n\n📍 Share once — Saved forever\n🌍 Timing any place — 400+ places DB\n🌤️ Correct weather exact\n🗣️ Any language — Click 🌍 button\n👇 Click once:", reply_markup=kb_location_once())
-        await update.message.reply_text("🎛️ SET TONE + LANGUAGE:", reply_markup=kb_tone())
+        await update.message.reply_text(f"⚡ SATYA — HIBA HAANIYA.F — CEO — VOICE + ANY LANGUAGE 🌍\n👑 Created by HIBA — Not OpenAI\n🕐 {datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%d %B %Y %I:%M %p IST')}\n\n📍 Share once — Saved forever\n🌍 Everysingle place timing exact\n🌤️ Correct weather\n🗣️ Any language — 🌍 button\n🎤 Voice — 🎤 button — Detect voice and speak\n👇 Click once:", reply_markup=kb_location_once())
+        await update.message.reply_text("🎛️ SET TONE + LANGUAGE + VOICE:", reply_markup=kb_tone())
 
 async def loc_cmd(update, context): await update.message.reply_text("📍 Share location ONCE — Saved forever:", reply_markup=kb_location_once())
-async def tone_cmd(update, context): await update.message.reply_text("🎛️ SET TONE + ANY LANGUAGE:", reply_markup=kb_tone())
+async def tone_cmd(update, context): await update.message.reply_text("🎛️ SET TONE + LANGUAGE + VOICE:", reply_markup=kb_tone())
 
 async def tone_cb(update, context):
     q=update.callback_query; await q.answer()
-    data=q.data
-    uid=q.from_user.id
+    data=q.data; uid=q.from_user.id
     if data=="t_lang":
         user_lang_mode[uid]=True
-        await q.edit_message_text("✅ 🌍 ANY LANGUAGE MODE ON — Now speak in any language — Telugu, Hindi, Urdu, Korean, Arabic, English — I will reply in SAME language you speak — Type in any language — Timing any place — Correct weather — Everysingle place", reply_markup=kb_tone())
+        await q.edit_message_text("✅ 🌍 ANY LANGUAGE MODE ON — Speak Telugu Hindi Urdu Korean English Arabic — I reply same language — I am created by HIBA HAANIYA.F — Not OpenAI", reply_markup=kb_tone())
+    elif data=="t_voice":
+        user_lang_mode[uid]=True
+        await q.edit_message_text("✅ 🎤 VOICE MODE ON — Send voice message with blue mic — I detect voice and speak — Any language — Telugu Hindi Urdu Korean — I am HIBA's SATYA — Not OpenAI — Send voice now", reply_markup=kb_tone())
     else:
         user_tones[uid]=data.replace("t_","")
-        await q.edit_message_text(f"✅ Tone {data.replace('t_','').upper()} set — Everysingle place timing exact — Any language — Click 🌍 for any language", reply_markup=kb_tone())
+        await q.edit_message_text(f"✅ Tone {data.replace('t_','').upper()} set — HIBA HAANIYA.F creator — Voice + Any language ready", reply_markup=kb_tone())
 
 async def handle_text(update, context):
     ans=ask_any(update.message.text, update.effective_user.id)
     await update.message.reply_text(ans, reply_markup=kb_tone())
+
+async def handle_voice(update, context):
+    # DETECT VOICE AND SPEAK — ANY LANGUAGE — HIBA'S BOT
+    try:
+        file=await update.message.voice.get_file()
+        with tempfile.NamedTemporaryFile(suffix=".ogg", delete=False) as tmp:
+            await file.download_to_drive(tmp.name)
+            text=transcribe_voice(tmp.name)
+        if not text:
+            text=transcribe_voice(tmp.name)  # retry
+        if text:
+            await update.message.reply_text(f"🎤 Heard your voice: {text[:200]} — Detecting any language — HIBA's SATYA — Replying...", reply_markup=kb_tone())
+            ans=ask_any(text, update.effective_user.id)
+            await update.message.reply_text(ans, reply_markup=kb_tone())
+        else:
+            await update.message.reply_text("⚠️ Could not hear voice — Try again — Speak Telugu Hindi Urdu English — HIBA's bot", reply_markup=kb_tone())
+    except Exception as e:
+        print(e)
+        await update.message.reply_text("⚠️ Voice error — Try text — HIBA's SATYA", reply_markup=kb_tone())
 
 async def handle_loc(update, context):
     lat=update.message.location.latitude; lon=update.message.location.longitude
@@ -245,13 +268,13 @@ async def handle_loc(update, context):
     save_locs()
     info=get_time_weather_exact((lat,lon))
     if info:
-        await update.message.reply_text(f"✅ LOCATION SAVED ONCE — Never again\n📍 {name[:150]}\n📍 {lat:.6f},{lon:.6f}\n🕐 {info['time']}\n🌤️ {info['weather']}\n✅ Everysingle place — Timing exact — Correct weather — Any language", reply_markup=kb_tone())
+        await update.message.reply_text(f"✅ LOCATION SAVED ONCE — Never again — HIBA HAANIYA.F\n📍 {name[:150]}\n📍 {lat:.6f},{lon:.6f}\n🕐 {info['time']}\n🌤️ {info['weather']}\n🎤 Voice enabled — Any language", reply_markup=kb_tone())
     else:
         await update.message.reply_text(f"✅ Saved — {lat:.6f},{lon:.6f}", reply_markup=kb_tone())
 
 async def post_init(app):
     await app.bot.delete_webhook(drop_pending_updates=True)
-    print("✅ Everysingle place — Any language — Exact timing")
+    print("✅ HIBA HAANIYA.F identity locked — Voice — Any language")
 
 def main():
     app=Application.builder().token(BOT_TOKEN).post_init(post_init).build()
@@ -259,6 +282,7 @@ def main():
     app.add_handler(CommandHandler("tone", tone_cmd))
     app.add_handler(CommandHandler("location", loc_cmd))
     app.add_handler(CallbackQueryHandler(tone_cb, pattern="^t_"))
+    app.add_handler(MessageHandler(filters.VOICE, handle_voice))  # VOICE DETECT
     app.add_handler(MessageHandler(filters.LOCATION, handle_loc))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
     app.run_polling(drop_pending_updates=True)
