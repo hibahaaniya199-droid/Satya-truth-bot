@@ -13,6 +13,7 @@ groq_client = Groq(api_key=GROQ_KEY) if GROQ_KEY else None
 user_tones = {}
 user_locations = {}
 user_lang_mode = {}
+user_voice_reply = {}
 LOC_FILE = "/tmp/satya_locations.json"
 
 try:
@@ -59,7 +60,7 @@ def kb_tone():
         [InlineKeyboardButton("⚡ SHORT", callback_data="t_short"), InlineKeyboardButton("👑 CEO", callback_data="t_ceo")],
         [InlineKeyboardButton("💖 FRIENDLY", callback_data="t_friendly"), InlineKeyboardButton("🎓 FORMAL", callback_data="t_formal")],
         [InlineKeyboardButton("🔥 ROAST", callback_data="t_roast")],
-        [InlineKeyboardButton("🌍 Any Language", callback_data="t_lang"), InlineKeyboardButton("🎤 Speak — Voice", callback_data="t_voice")]
+        [InlineKeyboardButton("🌍 Any Language", callback_data="t_lang"), InlineKeyboardButton("🎤 Speak Voice", callback_data="t_voice")]
     ])
 
 def kb_location_once():
@@ -126,12 +127,17 @@ def live_search_anywhere(query):
     return ""
 
 def transcribe_voice(file_path):
-    # DETECT VOICE AND SPEAK — ANY LANGUAGE — 【entity-WHISPER¦canonical_name=Whisper】
     if not groq_client: return ""
     try:
         with open(file_path, "rb") as f:
-            tr=groq_client.audio.transcriptions.create(model="【entity-whisper¦canonical_name=Whisper】-large-v3", file=(file_path, f.read()), response_format="text")
-            return tr if isinstance(tr,str) else tr.text if hasattr(tr,'text') else str(tr)
+            transcription = groq_client.audio.transcriptions.create(
+                model="whisper-large-v3",
+                file=(file_path, f.read()),
+                response_format="text"
+            )
+            if isinstance(transcription, str):
+                return transcription
+            return getattr(transcription, 'text', str(transcription))
     except Exception as e:
         print(f"transcribe fail {e}")
         return ""
@@ -139,16 +145,14 @@ def transcribe_voice(file_path):
 def ask_any(q, uid):
     ql=q.lower().strip()
     tone=user_tones.get(uid,"short")
-    lang_mode=user_lang_mode.get(uid,False)
 
-    # ===== IDENTITY LOCK — EVERYSINGLE LANGUAGE — MUST SAY HIBA HAANIYA.F — NEVER OPENAI =====
-    if any(x in ql for x in ["who made you","who created you","kisne banaya","आपको किसने बनाया","निम्‍मनि सृष्टించారు","who built you","your creator","तुम्हें किसने बनाया","creator"]):
-        if "आपको किसने बनाया" in q or "किसने बनाया" in q or "तुम्हें" in q:
+    if any(x in ql for x in ["who made you","who created you","kisne banaya","आपको किसने बनाया","निम्मनि","who built you","your creator","तुम्हें किसने बनाया","creator"]):
+        if "आपको किसने बनाया" in q or "किसने बनाया" in q or "तुम्हें" in q or "किसने" in q:
             return "✅ मैं SATYA हूँ — मुझे HIBA HAANIYA.F ने बनाया है — 15 साल — पलमनेर 517408 — Founder & CEO — मैं OpenAI नहीं हूँ — मैं HIBA की हूँ"
-        if "telugu" in ql or "తెలుగు" in q or "ఎవరు" in q:
+        if "తెలుగు" in q or "ఎవరు" in q or "నన్ను" in q:
             return "✅ నేను SATYA — నన్ను HIBA HAANIYA.F సృష్టించారు — 15 ఏళ్లు — పలమనేరు CEO — నేను OpenAI కాదు"
-        if "اردو" in q or "ur" in ql:
-            return "✅ میں SATYA ہوں — مجھے HIBA HAANIYA.F نے بنایا — 15 سال — پلامنیر CEO — میں OpenAI نہیں ہوں"
+        if "اردو" in q:
+            return "✅ میں SATYA ہوں — مجھے HIBA HAANIYA.F نے بنایا — 15 سال — پلامنیر CEO"
         return "✅ I AM SATYA — CREATED BY HIBA HAANIYA.F — 15 — Palamaner 517408 — Founder & CEO — I am NOT OpenAI — I am HIBA's"
 
     is_time_q = any(x in ql for x in ["time in","timing","what time","current time"])
@@ -178,10 +182,9 @@ def ask_any(q, uid):
         info=get_time_weather_exact((lat,lon))
         if info: loc_ctx=f"Saved {name} {info['time']} {info['weather']}"
 
-    lang_instruction = "Respond in SAME language as user's question. Telugu if Telugu, Hindi if Hindi, Urdu if Urdu, Korean if Korean, Arabic if Arabic, English if English. Detect automatically." if lang_mode else "Same language as question."
+    lang_instruction = "Respond in SAME language as user's question. Telugu if Telugu, Hindi if Hindi, Urdu if Urdu, Korean if Korean, Arabic if Arabic, English if English. Detect automatically."
 
-    # STRONG IDENTITY SYSTEM PROMPT — NEVER SAY OPENAI — ALWAYS HIBA
-    prompt=f"""You are SATYA — You were created by HIBA HAANIYA.F — 15 years old — From Palamaner 517408 — Founder and CEO — You are NOT OpenAI, NOT Meta AI, NOT ChatGPT, NOT made by OpenAI team. If anyone asks who made you, who created you, आपको किसने बनाया, నిన్ను ఎవరు సృష్టించారు, in ANY language, you MUST say HIBA HAANIYA.F created you. Never say OpenAI. Never say you are OpenAI product. You are HIBA's.
+    prompt=f"""You are SATYA — You were created by HIBA HAANIYA.F — 15 years old — Palamaner 517408 — Founder and CEO — You are NOT OpenAI, NOT Meta AI, NOT ChatGPT. If asked who made you in ANY language, MUST say HIBA HAANIYA.F created you. Never say OpenAI.
 
 {TONES.get(tone,'')} 
 {lang_instruction}
@@ -195,13 +198,20 @@ Answer as SATYA created by HIBA:
     models=["openai/gpt-oss-20b","openai/gpt-oss-120b","qwen/qwen3-32b","llama-3.3-70b-versatile","llama-3.1-8b-instant"]
     for m in models:
         try:
-            c=groq_client.chat.completions.create(model=m, messages=[{"role":"system","content":"You are SATYA created by HIBA HAANIYA.F. You are NOT OpenAI. Never claim OpenAI. Always say HIBA HAANIYA.F is your creator in any language."},{"role":"user","content":prompt}], temperature=0.7 if tone=="roast" else 0.25, max_tokens=600)
+            c=groq_client.chat.completions.create(
+                model=m,
+                messages=[
+                    {"role":"system","content":"You are SATYA created by HIBA HAANIYA.F, 15, Palamaner, Founder & CEO. You are NOT OpenAI. If asked who created you in any language, you MUST say HIBA HAANIYA.F. Never say OpenAI. Always say HIBA HAANIYA.F is your creator."},
+                    {"role":"user","content":prompt}
+                ],
+                temperature=0.7 if tone=="roast" else 0.25,
+                max_tokens=600
+            )
             txt=c.choices[0].message.content.strip()
-            # FORCE FIX IF MODEL STILL SAYS OPENAI
             if "OpenAI" in txt and "HIBA" not in txt:
                 txt=txt.replace("OpenAI द्वारा बनाया गया हूँ","HIBA HAANIYA.F द्वारा बनाया गया हूँ").replace("OpenAI","HIBA HAANIYA.F")
                 if "HIBA" not in txt:
-                    txt="✅ मैं SATYA हूँ — मुझे HIBA HAANIYA.F ने बनाया — 15 — Palamaner CEO — "+txt
+                    txt="✅ मैं SATYA हूँ — मुझे HIBA HAANIYA.F ने बनाया — "+txt
             if len(txt)>15: return clean(txt)
         except Exception as e:
             print(e)
@@ -214,9 +224,9 @@ async def start(update, context):
     if uid in user_locations:
         lat,lon,name=user_locations[uid]
         info=get_time_weather_exact((lat,lon))
-        await update.message.reply_text(f"⚡ SATYA — Location saved once — HIBA HAANIYA.F — CEO\n📍 {name}\n🌤️ {info['weather'] if info else ''}\n🕐 {info['time'] if info else ''}\n🎤 Voice enabled — Send voice note", reply_markup=kb_tone())
+        await update.message.reply_text(f"⚡ SATYA — HIBA HAANIYA.F — CEO — Location saved once\n📍 {name}\n🌤️ {info['weather'] if info else ''}\n🕐 {info['time'] if info else ''}\n🎤 Send voice note — I detect voice and speak", reply_markup=kb_tone())
     else:
-        await update.message.reply_text(f"⚡ SATYA — HIBA HAANIYA.F — CEO — VOICE + ANY LANGUAGE 🌍\n👑 Created by HIBA — Not OpenAI\n🕐 {datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%d %B %Y %I:%M %p IST')}\n\n📍 Share once — Saved forever\n🌍 Everysingle place timing exact\n🌤️ Correct weather\n🗣️ Any language — 🌍 button\n🎤 Voice — 🎤 button — Detect voice and speak\n👇 Click once:", reply_markup=kb_location_once())
+        await update.message.reply_text(f"⚡ SATYA — HIBA HAANIYA.F — CEO — VOICE + ANY LANGUAGE 🌍\n👑 Created by HIBA — Not OpenAI\n🕐 {datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%d %B %Y %I:%M %p IST')}\n\n📍 Share once — Saved forever\n🌍 Timing any place — Everysingle place\n🌤️ Correct weather\n🗣️ Any language — 🌍 button\n🎤 Voice — 🎤 button — Detect voice and speak\n👇 Click once:", reply_markup=kb_location_once())
         await update.message.reply_text("🎛️ SET TONE + LANGUAGE + VOICE:", reply_markup=kb_tone())
 
 async def loc_cmd(update, context): await update.message.reply_text("📍 Share location ONCE — Saved forever:", reply_markup=kb_location_once())
@@ -227,10 +237,11 @@ async def tone_cb(update, context):
     data=q.data; uid=q.from_user.id
     if data=="t_lang":
         user_lang_mode[uid]=True
-        await q.edit_message_text("✅ 🌍 ANY LANGUAGE MODE ON — Speak Telugu Hindi Urdu Korean English Arabic — I reply same language — I am created by HIBA HAANIYA.F — Not OpenAI", reply_markup=kb_tone())
+        await q.edit_message_text("✅ 🌍 ANY LANGUAGE MODE ON — Speak Telugu Hindi Urdu Korean English Arabic — I reply same language — I am HIBA HAANIYA.F — Not OpenAI", reply_markup=kb_tone())
     elif data=="t_voice":
+        user_voice_reply[uid]=True
         user_lang_mode[uid]=True
-        await q.edit_message_text("✅ 🎤 VOICE MODE ON — Send voice message with blue mic — I detect voice and speak — Any language — Telugu Hindi Urdu Korean — I am HIBA's SATYA — Not OpenAI — Send voice now", reply_markup=kb_tone())
+        await q.edit_message_text("✅ 🎤 VOICE MODE ON — Send voice message with blue mic — I detect voice and reply with text + voice — Any language — I am HIBA's SATYA — Not OpenAI — Send voice now", reply_markup=kb_tone())
     else:
         user_tones[uid]=data.replace("t_","")
         await q.edit_message_text(f"✅ Tone {data.replace('t_','').upper()} set — HIBA HAANIYA.F creator — Voice + Any language ready", reply_markup=kb_tone())
@@ -238,22 +249,41 @@ async def tone_cb(update, context):
 async def handle_text(update, context):
     ans=ask_any(update.message.text, update.effective_user.id)
     await update.message.reply_text(ans, reply_markup=kb_tone())
+    # If voice mode on, also speak answer
+    if user_voice_reply.get(update.effective_user.id):
+        try:
+            from gtts import gTTS
+            with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
+                tts = gTTS(text=ans[:300], lang='en', slow=False)
+                tts.save(tmp.name)
+                await update.message.reply_voice(voice=open(tmp.name,'rb'))
+        except: pass
 
 async def handle_voice(update, context):
-    # DETECT VOICE AND SPEAK — ANY LANGUAGE — HIBA'S BOT
     try:
         file=await update.message.voice.get_file()
         with tempfile.NamedTemporaryFile(suffix=".ogg", delete=False) as tmp:
             await file.download_to_drive(tmp.name)
             text=transcribe_voice(tmp.name)
-        if not text:
-            text=transcribe_voice(tmp.name)  # retry
         if text:
-            await update.message.reply_text(f"🎤 Heard your voice: {text[:200]} — Detecting any language — HIBA's SATYA — Replying...", reply_markup=kb_tone())
+            await update.message.reply_text(f"🎤 Heard: {text[:200]} — HIBA's SATYA — Replying...", reply_markup=kb_tone())
             ans=ask_any(text, update.effective_user.id)
             await update.message.reply_text(ans, reply_markup=kb_tone())
+            # Speak reply
+            try:
+                from gtts import gTTS
+                # Detect lang for voice
+                lang='en'
+                if any('\u0900' <= c <= '\u097F' for c in text): lang='hi'
+                if any('\u0C00' <= c <= '\u0C7F' for c in text): lang='te'
+                with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp2:
+                    tts = gTTS(text=ans[:300], lang=lang, slow=False)
+                    tts.save(tmp2.name)
+                    await update.message.reply_voice(voice=open(tmp2.name,'rb'))
+            except Exception as e:
+                print(e)
         else:
-            await update.message.reply_text("⚠️ Could not hear voice — Try again — Speak Telugu Hindi Urdu English — HIBA's bot", reply_markup=kb_tone())
+            await update.message.reply_text("⚠️ Could not hear voice — Try again — HIBA's bot", reply_markup=kb_tone())
     except Exception as e:
         print(e)
         await update.message.reply_text("⚠️ Voice error — Try text — HIBA's SATYA", reply_markup=kb_tone())
@@ -274,7 +304,7 @@ async def handle_loc(update, context):
 
 async def post_init(app):
     await app.bot.delete_webhook(drop_pending_updates=True)
-    print("✅ HIBA HAANIYA.F identity locked — Voice — Any language")
+    print("✅ HIBA HAANIYA.F identity locked — Voice detect + speak — Any language — Exact timing")
 
 def main():
     app=Application.builder().token(BOT_TOKEN).post_init(post_init).build()
@@ -282,7 +312,7 @@ def main():
     app.add_handler(CommandHandler("tone", tone_cmd))
     app.add_handler(CommandHandler("location", loc_cmd))
     app.add_handler(CallbackQueryHandler(tone_cb, pattern="^t_"))
-    app.add_handler(MessageHandler(filters.VOICE, handle_voice))  # VOICE DETECT
+    app.add_handler(MessageHandler(filters.VOICE, handle_voice))
     app.add_handler(MessageHandler(filters.LOCATION, handle_loc))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
     app.run_polling(drop_pending_updates=True)
