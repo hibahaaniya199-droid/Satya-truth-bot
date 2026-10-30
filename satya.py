@@ -117,29 +117,46 @@ def kb_location_once():
 def kb_main_popup():
     return ReplyKeyboardMarkup([[KeyboardButton("🎛️ Change Tone"), KeyboardButton("🎤 Speak Voice")],[KeyboardButton("🌍 Any Language"), KeyboardButton("🔗 Check Link")]], resize_keyboard=True)
 
-def get_coords(place):
-    try:
-        r=requests.get(f"https://nominatim.openstreetmap.org/search?q={place}&format=json&limit=1", headers={"User-Agent":"SATYA-BEST"}, timeout=8)
-        if r.status_code==200 and r.json():
-            d=r.json()[0]
-            return float(d['lat']), float(d['lon']), d.get('display_name','')
-    except: pass
-    return None,None,""
 
-def get_time_weather_exact(place_or_latlon):
+def get_coords(place):
+    if not GEOPY_AVAILABLE:
+        return None, None, ""
     try:
-        if isinstance(place_or_latlon, tuple):
-            lat,lon=place_or_latlon; display=""
-        else:
-            lat,lon,display=get_coords(place_or_latlon)
-            if lat is None: return None
-        r=requests.get(f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m,apparent_temperature,wind_speed_10m,relative_humidity_2m&timezone=auto", timeout=8)
-        if r.status_code!=200: return None
-        j=r.json(); tz=j.get('timezone','Asia/Kolkata'); curr=j.get('current',{})
-        weather=f"{curr.get('temperature_2m')}°C feels {curr.get('apparent_temperature')}°C, wind {curr.get('wind_speed_10m')}km/h, humidity {curr.get('relative_humidity_2m')}%"
-        dt=datetime.now(ZoneInfo(tz)); pretty=dt.strftime(f"%d %B %Y, %I:%M:%S %p {tz}")
-        return {"lat":lat,"lon":lon,"display":display,"time":pretty,"timezone":tz,"weather":weather}
-    except: return None
+        geolocator = Nominatim(user_agent="satya_bot")
+        location = geolocator.geocode(place, timeout=5)
+        if location:
+            return location.latitude, location.longitude, location.address
+    except:
+        pass
+    return None, None, ""
+
+def get_time_weather_exact(place_or_coords):
+    # Simplified - only timezone from tz_map, no openmeteo
+    if isinstance(place_or_coords, tuple):
+        lat, lon = place_or_coords
+        return {"timezone": "Asia/Kolkata", "display": f"{lat},{lon}", "weather": "Weather check via search", "time": datetime.now(ZoneInfo("Asia/Kolkata")).strftime("%d %B %Y, %I:%M:%S %p IST")}
+    else:
+        # place string
+        place = place_or_coords.lower() if isinstance(place_or_coords, str) else "Palamaner"
+        tz_map = {
+            "south korea": "Asia/Seoul", "korea": "Asia/Seoul", "seoul": "Asia/Seoul",
+            "japan": "Asia/Tokyo", "tokyo": "Asia/Tokyo",
+            "usa": "America/New_York", "new york": "America/New_York",
+            "uk": "Europe/London", "london": "Europe/London",
+            "bihar": "Asia/Kolkata", "palamaner": "Asia/Kolkata", "india": "Asia/Kolkata",
+        }
+        tz = "Asia/Kolkata"
+        for k,v in tz_map.items():
+            if k in place:
+                tz = v
+                break
+        try:
+            now = datetime.now(ZoneInfo(tz))
+            time_str = now.strftime("%d %B %Y, %I:%M:%S %p")
+        except:
+            time_str = datetime.now().strftime("%d %B %Y, %I:%M:%S %p")
+        return {"timezone": tz, "display": place_or_coords[:100], "weather": "Weather via live search", "time": time_str}
+
 
 
 def get_accurate_time_with_difference(query):
