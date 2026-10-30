@@ -1,7 +1,5 @@
 
 import os, requests, re, json, tempfile, asyncio, base64
-
-
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup
@@ -63,14 +61,12 @@ def get_coords(place):
     return None, None, ""
 
 def get_time_weather_exact(place_or_coords):
-    # Simplified - only timezone from tz_map, no openmeteo
     if isinstance(place_or_coords, tuple):
         lat, lon = place_or_coords
-        return {"timezone": "Asia/Kolkata", "display": f"{lat},{lon}", "weather": "Weather check via search", "time": datetime.now(ZoneInfo("Asia/Kolkata")).strftime("%d %B %Y, %I:%M:%S %p IST")}
+        return {"timezone": "Asia/Kolkata", "display": f"{lat},{lon}", "weather": "Weather via live search 🌤️", "time": datetime.now(ZoneInfo("Asia/Kolkata")).strftime("%d %B %Y, %I:%M:%S %p IST")}
     else:
-        # place string
         place = place_or_coords.lower() if isinstance(place_or_coords, str) else "Palamaner"
-        tz_map = {
+        tz_map_simple = {
             "south korea": "Asia/Seoul", "korea": "Asia/Seoul", "seoul": "Asia/Seoul",
             "japan": "Asia/Tokyo", "tokyo": "Asia/Tokyo",
             "usa": "America/New_York", "new york": "America/New_York",
@@ -78,7 +74,7 @@ def get_time_weather_exact(place_or_coords):
             "bihar": "Asia/Kolkata", "palamaner": "Asia/Kolkata", "india": "Asia/Kolkata",
         }
         tz = "Asia/Kolkata"
-        for k,v in tz_map.items():
+        for k,v in tz_map_simple.items():
             if k in place:
                 tz = v
                 break
@@ -87,7 +83,7 @@ def get_time_weather_exact(place_or_coords):
             time_str = now.strftime("%d %B %Y, %I:%M:%S %p")
         except:
             time_str = datetime.now().strftime("%d %B %Y, %I:%M:%S %p")
-        return {"timezone": tz, "display": place_or_coords[:100], "weather": "Weather via live search", "time": time_str}
+        return {"timezone": tz, "display": place_or_coords[:100], "weather": "Weather via live search 🌤️", "time": time_str}
 
 
 
