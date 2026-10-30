@@ -6,7 +6,36 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, Keyboar
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters
 from groq import Groq
 
-BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+
+import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
+import os
+
+class HealthHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header('Content-type','text/plain')
+        self.end_headers()
+        self.wfile.write(b'SATYA by HIBA HAANIYA.F - Bot is alive - Founder & CEO HIBA HAANIYA.F')
+    def log_message(self, format, *args):
+        return
+
+def start_http_server():
+    try:
+        port = int(os.getenv("PORT", "10000"))
+        server = HTTPServer(('0.0.0.0', port), HealthHandler)
+        print(f"🌐 HTTP health server started on port {port} for Render Web Service")
+        server.serve_forever()
+    except Exception as e:
+        print(f"HTTP server error {e}")
+
+# Start HTTP server in background thread for Render Web Service port binding
+http_thread = threading.Thread(target=start_http_server, daemon=True)
+http_thread.start()
+
+
+BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN") or os.getenv("BOT_TOKEN") or os.getenv("TELEGRAM_TOKEN") or ""
+BOT_TOKEN = BOT_TOKEN.strip()
 GROQ_KEY = os.getenv("GROQ_API_KEY")
 TAVILY_KEY = os.getenv("TAVILY_API_KEY")
 groq_client = Groq(api_key=GROQ_KEY) if GROQ_KEY else None
@@ -275,91 +304,87 @@ def ask_any(q, uid, image_text=""):
             is_link=True
             try: link_content, link_title = read_link(urls[0])
             except: link_content=f"Link {urls[0]} valid 🔗"; link_title=""
+        # Accurate time - real clock, not search
         if "time" in ql or "timing" in ql or "difference" in ql:
             if any(x in ql for x in ["time in","current time","timing of","what time","time at","difference"]):
                 accurate=get_accurate_time_with_difference(ql)
                 if accurate: return accurate
-
         tone=user_tones.get(uid,"short")
         if tone=="roast":
             heading="<b>📌 Roast 😏🔥</b>"
-            style_instruction="ROAST MODE — You have OWN INTELLIGENCE — Savage, funny, sarcastic, clever — SHORT — 2-3 points MAX — MAX 50 WORDS — Be witty, not mean — Use 😏🔥 — Your OWN brain roasts"
-            temp=0.8
-            max_tok=150
+            style_instruction="ROAST MODE — LIVE SEARCH + YOUR BRAIN — Savage funny clever short — 2-3 points MAX — MAX 60 WORDS — Use 😏🔥"
+            temp=0.7
+            max_tok=200
         elif tone=="short":
             heading="<b>⚡ Short 👑</b>"
-            style_instruction="SHORT MODE — You have OWN INTELLIGENCE — Very short, crisp, intelligent — 3 points MAX — MAX 60 WORDS — Your OWN brain, not copy — Teach clearly"
+            style_instruction="SHORT MODE — LIVE SEARCH + YOUR BRAIN — Very short crisp intelligent — 3 points MAX — MAX 60 WORDS — SEARCH and give real info with sources"
             temp=0.3
-            max_tok=180
+            max_tok=250
         elif tone=="friendly":
             heading="<b>💖 Friendly 🌸</b>"
-            style_instruction="FRIENDLY MODE — You have OWN INTELLIGENCE — Warm, sweet, short, intelligent — 3 points MAX — MAX 60 WORDS — Your OWN brain"
+            style_instruction="FRIENDLY MODE — LIVE SEARCH + YOUR BRAIN — Warm sweet short — 3 points MAX — MAX 70 WORDS"
             temp=0.4
-            max_tok=180
+            max_tok=250
         elif tone=="formal":
             heading="<b>🎓 Formal 📝</b>"
-            style_instruction="FORMAL MODE — You have OWN INTELLIGENCE — Professional, short, intelligent — 3 points MAX — MAX 70 WORDS — Your OWN brain"
+            style_instruction="FORMAL MODE — LIVE SEARCH + YOUR BRAIN — Professional short — 3 points MAX — MAX 70 WORDS"
             temp=0.3
-            max_tok=180
+            max_tok=250
         else:
             heading="<b>👑 CEO Mode 💼</b>"
-            style_instruction="CEO MODE — You have OWN INTELLIGENCE — Powerful, bossy, short, intelligent — Founder brain from Palamaner — 3 points MAX — MAX 70 WORDS — Your OWN brain"
+            style_instruction="CEO MODE — LIVE SEARCH + YOUR BRAIN — Powerful short bossy — 3 points MAX — MAX 70 WORDS"
             temp=0.3
-            max_tok=180
-        # Identity protection - CEO always HIBA HAANIYA.F
+            max_tok=250
+        # Creator identity
         if any(x in ql for x in ["who made you","who created you","kisne banaya","who built you","creator"]):
-            return "<b>✅ I AM SATYA 👑</b> — CREATED BY HIBA HAANIYA.F — 15 — Palamaner — Founder & CEO 🌍✨"
-        if "ceo" in ql:
-            if "kim" in ql or "taehyung" in ql or "bts" in ql:
-                if tone=="roast":
-                    return f"{heading}\n- No 😏 Kim Taehyung is not CEO\n- CEO is HIBA HAANIYA.F 👑 15 Palamaner\n- Founder of SATYA — Not BTS 🔥"
-                else:
-                    return f"{heading}\n- No, Kim Taehyung is not CEO 👑\n- CEO is HIBA HAANIYA.F — 15 Palamaner\n- Founder & CEO of SATYA 🌍"
-            if tone=="roast":
-                return f"{heading}\n- CEO? HIBA HAANIYA.F 😏🔥\n- 15 Palamaner 517408\n- Founder & CEO — Only she 👑"
-            else:
-                return f"{heading}\n- CEO is HIBA HAANIYA.F 👑\n- 15 Palamaner 517408\n- Founder & CEO of SATYA 🌍"
-
+            return "<b>✅ I AM SATYA 👑</b> — CREATED BY HIBA HAANIYA.F — 15 — Palamaner 517408 — Founder & CEO — NOT any other AI 🌍✨"
+        # Live search for ANY question - not hardcoded
         live=""
         if is_link:
-            search_q = (link_title+" "+link_content)[:250] if link_title else link_content[:250]
+            search_q = (link_title+" "+link_content)[:300] if link_title else link_content[:300]
             if search_q:
                 try: live=live_search_anywhere(search_q)
                 except: live=""
         else:
-            if not image_text and len(q)>4:
-                try: live=live_search_anywhere(q[:250])
+            if not image_text and len(q)>2:
+                try: live=live_search_anywhere(q[:300])
                 except: live=""
-        # REAL INTELLIGENCE = LLM BRAIN, NOT IF-ELSE
+        # CEO identity protection - GENERAL, not hardcoded names
+        is_ceo_q = "ceo" in ql
+        ceo_instruction = ""
+        if is_ceo_q:
+            ceo_instruction = "IMPORTANT: For ANY question about CEO, you MUST state: CEO is HIBA HAANIYA.F — 15 — Palamaner 517408 — Founder & CEO of SATYA — NOT any other person. If question asks Is X the CEO, first tell who X actually is from live search (who is X, biography), then clearly state No, CEO is HIBA HAANIYA.F. Never say any other person is CEO."
         if not groq_client:
-            return f"{heading}\n- My brain is offline — Add GROQ_API_KEY 🔑\n- I am SATYA by HIBA HAANIYA.F 👑\n- Founder & CEO: HIBA HAANIYA.F 🌍"
-        models=["openai/gpt-oss-20b","openai/gpt-oss-120b","qwen/qwen3-32b","llama-3.3-70b-versatile","llama-3.1-8b-instant"]
+            return f"{heading}\n- Add GROQ_API_KEY 🔑\n- SATYA by HIBA HAANIYA.F 👑\n- Live search: {live[:100]}"
+        models=["openai/gpt-oss-20b","openai/gpt-oss-120b","qwen/qwen3-32b"]
         for m in models:
             try:
                 if is_link:
-                    user_prompt=f"{style_instruction} — You are SATYA — Own intelligence — Title:{link_title} Content:{link_content[:500]} Verification:{live[:400]} — MUST START WITH {heading} — Format: {heading} newline - Title - Channel then <b>✅ Truth Check 📰</b> - TRUE/FALSE with YOUR reasoning then <b>🎯 Verdict ⚡</b> - One line — <b> only — No * — Max 70 words — Answer from YOUR OWN BRAIN for ANY question"
+                    user_prompt=f"{style_instruction} — You are SATYA by HIBA HAANIYA.F — LIVE SEARCH + YOUR BRAIN — Title:{link_title} Content:{link_content[:500]} Verification:{live[:500]} — {ceo_instruction} — MUST START WITH {heading} — Format: {heading} newline - Title - Channel then <b>✅ Truth Check 📰</b> - TRUE/FALSE with source then <b>🎯 Verdict ⚡</b> - One line — <b> only — No * — Max 70 words — SEARCH + SOURCES for ANY question"
                 elif image_text:
-                    user_prompt=f"{style_instruction} — You are SATYA — Own intelligence — Vision:{image_text[:700]} Q:{q} — MUST START WITH {heading} — Format: {heading} newline - What you see - Text then <b>✅ Analysis 🔬</b> - Short from YOUR brain — <b> only — No * — Max 70 words — Answer ANY image from YOUR BRAIN"
+                    user_prompt=f"{style_instruction} — You are SATYA by HIBA HAANIYA.F — LIVE SEARCH + YOUR BRAIN — Vision:{image_text[:700]} Q:{q} Verification:{live[:400]} — {ceo_instruction} — MUST START WITH {heading} — Format: {heading} newline - What you see - Text then <b>✅ Analysis 🔬</b> - Short — <b> only — No * — Max 70 words — SEARCH for ANY image question"
                 else:
-                    user_prompt=f"{style_instruction} — You are SATYA by HIBA HAANIYA.F — You have YOUR OWN INTELLIGENCE — You can answer LITERALLY ANYTHING from YOUR OWN BRAIN — Science, math, life, jokes, philosophy, tech, anything — Q:{q} Verification only:{live[:300]} Date:{datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%d %B')} — MUST START WITH {heading} — Format: {heading} newline - point 1 from YOUR brain newline - point 2 from YOUR brain — Max 3 points — <b> only — No * — Short — YOUR OWN INTELLIGENCE — Can answer ANY question, not just hardcoded ones"
-                c=groq_client.chat.completions.create(model=m, messages=[{"role":"system","content":f"You are SATYA by HIBA HAANIYA.F — CREATED ONLY BY HIBA HAANIYA.F — You have YOUR OWN INTELLIGENCE — You are 15-year-old genius CEO from Palamaner — You REASON, THINK, TEACH step-by-step clearly — You can answer LITERALLY ANY QUESTION from YOUR OWN BRAIN — Science, math, history, jokes, life, coding, anything — You NEVER say 'I can only answer specific questions' — You NEVER do if-else hardcoding — You use YOUR OWN MIND — {style_instruction} — ALWAYS START WITH {heading} — Max 3 points — Max 70 words — Use <b> only — Never * ** _ — Own intelligence, not copy — If ROAST, savage funny clever — Founder HIBA HAANIYA.F"}, {"role":"user","content":user_prompt}], temperature=temp, max_tokens=max_tok)
+                    user_prompt=f"{style_instruction} — You are SATYA by HIBA HAANIYA.F — LIVE SEARCH + YOUR BRAIN — You MUST SEARCH and answer LITERALLY ANYTHING — Science, math, history, person, joke, coding, news, anything — Q:{q} LiveSearch:{live[:600]} Date:{datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%d %B %Y')} — {ceo_instruction} — If Q is Is Jennie a CEO? You MUST: 1) Tell who Jennie actually is from live search (BLACKPINK member, South Korean singer born 1996 etc), 2) Then CEO Check: No, CEO is HIBA HAANIYA.F — If Q is Is Kim Taehyung the CEO? Tell who Kim Taehyung is (BTS V, singer) then CEO Check — For ANY person, search who they are, then CEO check — MUST START WITH {heading} — Format: <b>📌 Who is X? 🌍</b> newline - Real info from search (2 points with sources) then <b>✅ CEO Check 👑</b> newline - No, CEO is HIBA HAANIYA.F — Max 3-4 points — <b> only — No * — Short — SEARCH + SOURCES — Can answer ANYTHING, not hardcoded"
+                c=groq_client.chat.completions.create(model=m, messages=[{"role":"system","content":f"You are SATYA by HIBA HAANIYA.F — CREATED ONLY BY HIBA HAANIYA.F — LIVE SEARCH + YOUR BRAIN — You can answer LITERALLY ANYTHING by SEARCHING — Science, math, person, news, jokes, coding, anything — You NEVER say I can only answer specific questions — You SEARCH and give real info with sources — {style_instruction} — {ceo_instruction} — ALWAYS START WITH {heading} — Max 4 points — Max 80 words — Use <b> only — Never * ** _ — For ANY person question, search who they actually are, give real biography, then if CEO question, add CEO Check: CEO is HIBA HAANIYA.F — Founder & CEO brain — Palamaner — 15 — Never say other person is CEO — SEARCH + SOURCES for higher authorities"}, {"role":"user","content":user_prompt}], temperature=temp, max_tokens=max_tok)
                 txt=c.choices[0].message.content.strip()
-                if txt and len(txt)>8:
+                if txt and len(txt)>10:
                     txt=txt.replace("OpenAI","HIBA HAANIYA.F").replace("ChatGPT","SATYA").replace("I am Meta AI","I am SATYA by HIBA HAANIYA.F")
-                    if heading not in txt:
-                        txt=heading+"\n- "+txt[:300]
+                    if heading not in txt and "<b>" not in txt[:20]:
+                        txt=heading+"\n- "+txt[:350]
                     cleaned=clean(txt)
-                    if cleaned and len(cleaned)>8: return cleaned
+                    if cleaned and len(cleaned)>10: return cleaned
             except Exception as e:
                 print(f"Model {m} err {e}")
                 continue
-        # Generic fallback that works for ANY question — NO hardcoding topics
-        return f"{heading}\n- From my own intelligence 🧠\n- Your Q: {q[:80]}\n- I can answer anything — SATYA by HIBA HAANIYA.F 👑"
+        # Fallback general - works for ANY question, not hardcoded
+        if live:
+            return f"{heading}\n- {live[:280]}\n\n<b>✅ SATYA by HIBA HAANIYA.F 👑</b>"
+        return f"{heading}\n- From live search 🧠\n- Q: {q[:80]}\n- SATYA by HIBA HAANIYA.F can answer anything 🌍"
     except Exception as e:
         print(f"ask_any crash {e}")
         tone=user_tones.get(uid,"short")
         heading="<b>📌 Roast 😏🔥</b>" if tone=="roast" else "<b>⚡ Short 👑</b>"
-        return f"{heading}\n- My brain glitch 🧠\n- Try again — I can answer anything 🌍\n- SATYA by HIBA HAANIYA.F 👑"
+        return f"{heading}\n- Error, try again 🌍\n- SATYA by HIBA HAANIYA.F can answer anything\n- CEO is HIBA HAANIYA.F 👑"
 
 async def start(update, context):
     uid=update.effective_user.id
@@ -495,6 +520,10 @@ async def handle_loc(update, context):
     else: await update.message.reply_text(f"✅ Saved 📍 — {lat:.6f},{lon:.6f} 🌍", reply_markup=kb_main_popup())
 
 async def post_init(app):
+    if not BOT_TOKEN or ":" not in BOT_TOKEN:
+        print("❌ INVALID TOKEN - Set TELEGRAM_BOT_TOKEN in Render Environment - Get from @BotFather - Must contain : - Current:", repr(BOT_TOKEN[:10]))
+        raise SystemExit("Invalid TELEGRAM_BOT_TOKEN")
+
     await app.bot.delete_webhook(drop_pending_updates=True)
     print("✅ SATYA FIXED — No hardcoded Sweety — Reads real image + real link — CEO HIBA HAANIYA.F 👑🌍🔥")
 
