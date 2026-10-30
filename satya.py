@@ -1,29 +1,6 @@
 
 import os, requests, re, json, tempfile, asyncio, base64
 
-# --- RENDER FREE WEB SERVICE FIX - Binds to PORT so port scan passes - FREE ---
-import threading
-from http.server import BaseHTTPRequestHandler, HTTPServer
-class HealthHandler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(200)
-        self.send_header('Content-type','text/plain')
-        self.end_headers()
-        self.wfile.write(b'SATYA by HIBA HAANIYA.F - Live - CEO HIBA HAANIYA.F')
-    def log_message(self, format, *args):
-        return
-def start_health_server():
-    try:
-        port = int(os.getenv("PORT", "10000"))
-        server = HTTPServer(('0.0.0.0', port), HealthHandler)
-        print(f"🌐 HTTP health server started on port {port} - For Render FREE Web Service - SATYA Live")
-        server.serve_forever()
-    except Exception as e:
-        print(f"Health server error {e}")
-
-# Start health server in background thread for Render free Web Service
-threading.Thread(target=start_health_server, daemon=True).start()
-
 
 from datetime import datetime
 from zoneinfo import ZoneInfo
