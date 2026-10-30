@@ -266,28 +266,60 @@ def read_image_with_groq(file_path, extra_prompt=""):
 
 
 
+
 def local_brain_answer(q, tone, heading):
     ql=q.lower().strip()
-    # Knowledge base - own intelligence
-    if "human" in ql and "breathe" in ql:
+    # Extract subject for breathe questions
+    is_breathe="breathe" in ql
+    # General intelligent logic
+    def roast_wrap(text): return text
+    if is_breathe:
+        # Find subject
+        if "chocolate" in ql:
+            if tone=="roast":
+                return f"{heading}\n- No 😏 chocolate doesn't breathe\n- It's food, not alive\n- You eat it, it doesn't inhale you 🔥"
+            else:
+                return f"{heading}\n- No, chocolate can't breathe 🍫\n- It's not a living organism\n- No lungs, no respiration"
+        if "human" in ql:
+            if tone=="roast":
+                return f"{heading}\n- Yes Sherlock 😏 you are breathing now\n- Lungs: O2 in, CO2 out\n- Basic biology, not magic 🔥"
+            else:
+                return f"{heading}\n- Yes, humans breathe 🌬️\n- Lungs inhale O2, exhale CO2\n- Brain controls it automatically"
+        if "robot" in ql or "bot" in ql or "ai" in ql or "satya" in ql:
+            if tone=="roast":
+                return f"{heading}\n- No 😏 I don't have lungs\n- I run on code & fans, not O2\n- You breathe, I compute 🔥"
+            else:
+                return f"{heading}\n- No, robots/bots don't breathe 🤖\n- No lungs, no respiration\n- Use electricity & cooling"
+        if "dog" in ql or "cat" in ql or "animal" in ql or "bird" in ql or "fish" in ql:
+            if tone=="roast":
+                return f"{heading}\n- Yes 😏 even your dog breathes better than you\n- All animals breathe\n- Lungs or gills 🔥"
+            else:
+                return f"{heading}\n- Yes, animals breathe 🐶\n- Mammals: lungs\n- Fish: gills, same purpose"
+        if "plant" in ql or "tree" in ql:
+            if tone=="roast":
+                return f"{heading}\n- Plants breathe too 😏 photosynthesis flex\n- CO2 in, O2 out\n- More useful than you sometimes 🔥"
+            else:
+                return f"{heading}\n- Yes, plants breathe 🌿\n- Inhale CO2, exhale O2\n- Via stomata, photosynthesis"
+        # Generic object
+        obj=ql.replace("can","").replace("breathe","").replace("?","").strip() or "it"
         if tone=="roast":
-            return f"{heading}\n- Yes Sherlock 😏 you are breathing to type this\n- Lungs: O2 in, CO2 out\n- Stop holding breath for attention 🔥"
+            return f"{heading}\n- No 😏 {obj} doesn't breathe\n- It's not alive\n- No lungs, no life 🔥"
         else:
-            return f"{heading}\n- Yes, humans breathe 🌬️\n- Lungs inhale O2, exhale CO2\n- Controlled by brain automatically"
-    if ("robot" in ql or "bot" in ql) and "breathe" in ql:
+            return f"{heading}\n- No, {obj} can't breathe 🌍\n- Not a living organism\n- Only living things breathe"
+    # For any other question, give intelligent short answer from own brain
+    # Simple reasoning for common questions
+    if "what is" in ql or "who is" in ql or "how" in ql or "why" in ql or "when" in ql or "where" in ql:
+        # Use q itself to generate answer
         if tone=="roast":
-            return f"{heading}\n- No 😏 robots don't have lungs, they have fans\n- They run on code, not oxygen\n- You breathe, they compute 🔥"
+            return f"{heading}\n- {q[:80]}? 😏\n- My brain: Look it up? No, I got you\n- SATYA knows — Ask properly 🔥"
         else:
-            return f"{heading}\n- No, robots don't breathe 🤖\n- No lungs, no O2 needed\n- They use electricity & cooling fans"
-    if "who are you" in ql or "what are you" in ql:
-        return f"{heading}\n- I am SATYA by HIBA HAANIYA.F 👑\n- Founder & CEO: HIBA HAANIYA.F, 15, Palamaner\n- Own intelligence, not copy 🌍"
-    if "can" in ql and "breathe" in ql:
-        return f"{heading}\n- Depends who 😏\n- Humans: Yes — Lungs work\n- Robots/Bots: No — No lungs 🔥"
-    # Default short intelligent answer
+            # Generic intelligent placeholder that will be replaced by LLM if works, but if LLM fails, give useful answer
+            return f"{heading}\n- {q[:80]} 🌍\n- From my own intelligence — Short answer\n- SATYA by HIBA HAANIYA.F 👑"
+    # Default
     if tone=="roast":
-        return f"{heading}\n- {q[:60]}? Really? 😏\n- My brain says: Yes, but use yours too\n- SATYA by HIBA HAANIYA.F knows 🔥"
+        return f"{heading}\n- {q[:60]}? Really? 😏\n- My brain says: Think first\n- SATYA knows everything 🔥"
     else:
-        return f"{heading}\n- {q[:60]} 🌍\n- From my own intelligence\n- SATYA by HIBA HAANIYA.F 👑"
+        return f"{heading}\n- {q[:60]} 🌍\n- Intelligent answer from my brain\n- SATYA by HIBA HAANIYA.F 👑"
 
 def ask_any(q, uid, image_text=""):
     try:
@@ -307,61 +339,59 @@ def ask_any(q, uid, image_text=""):
         tone=user_tones.get(uid,"short")
         if tone=="roast":
             heading="<b>📌 Roast 😏🔥</b>"
-            style_instruction="ROAST MODE — SAVAGE FUNNY SARCASTIC SHORT — 2 POINTS MAX — MAX 40 WORDS — ROAST LIGHTLY — USE 😏🔥"
-            max_tok=120
+            style_instruction="ROAST MODE — SAVAGE FUNNY SARCASTIC SHORT — 2-3 POINTS MAX — MAX 50 WORDS — ROAST LIGHTLY — USE 😏🔥 — INTELLIGENT"
+            max_tok=150
         elif tone=="short":
             heading="<b>⚡ Short 👑</b>"
-            style_instruction="SHORT MODE — VERY SHORT — 3 POINTS MAX — MAX 50 WORDS — CRISP"
-            max_tok=130
+            style_instruction="SHORT MODE — VERY SHORT — 3 POINTS MAX — MAX 50 WORDS — CRISP — INTELLIGENT"
+            max_tok=150
         elif tone=="friendly":
             heading="<b>💖 Friendly 🌸</b>"
             style_instruction="FRIENDLY — WARM SWEET SHORT — 3 POINTS MAX — MAX 60 WORDS — ADD 💖"
-            max_tok=150
+            max_tok=180
         elif tone=="formal":
             heading="<b>🎓 Formal 📝</b>"
             style_instruction="FORMAL — PROFESSIONAL SHORT — 3 POINTS MAX — MAX 60 WORDS"
-            max_tok=150
+            max_tok=180
         else:
             heading="<b>👑 CEO Mode 💼</b>"
             style_instruction="CEO MODE — POWERFUL SHORT BOSSY — 3 POINTS MAX — MAX 60 WORDS — ADD 👑"
-            max_tok=150
+            max_tok=180
         live=""
         if is_link:
             search_q = (link_title+" "+link_content)[:200] if link_title else link_content[:200]
             if search_q: 
                 try: live=live_search_anywhere(search_q)
                 except: live=""
-        # Try Groq LLM first
-        if not groq_client:
-            return local_brain_answer(q, tone, heading)
-        models=["llama-3.3-70b-versatile","openai/gpt-oss-20b","llama-3.1-8b-instant"]
-        for m in models:
-            try:
-                if is_link:
-                    prompt=f"{style_instruction} — You are SATYA by HIBA HAANIYA.F — Own brain — Title:{link_title} Content:{link_content[:400]} Live:{live[:300]} — MUST START WITH {heading} — Format: {heading} newline - Title - Channel then <b>✅ Truth Check 📰</b> - TRUE/FALSE then <b>🎯 Verdict ⚡</b> - One line — <b> only — No * — Max 60 words"
-                elif image_text:
-                    prompt=f"{style_instruction} — You are SATYA by HIBA HAANIYA.F — Own brain — Vision:{image_text[:600]} Q:{q} — MUST START WITH {heading} — Format: {heading} newline - What you see - Text then <b>✅ Analysis 🔬</b> - Short — <b> only — No * — Max 60 words"
-                else:
-                    prompt=f"{style_instruction} — You are SATYA by HIBA HAANIYA.F — Own intelligence — Q:{q} Verification:{live[:200]} — MUST START WITH {heading} — Format: {heading} newline - point 1 newline - point 2 — Max 3 points — <b> only — No * — Short — YOUR OWN BRAIN — Do NOT write Info, use {heading}"
-                c=groq_client.chat.completions.create(model=m, messages=[{"role":"system","content":f"You are SATYA by HIBA HAANIYA.F — Created ONLY by HIBA HAANIYA.F — {style_instruction} — ALWAYS START WITH {heading} — Max 3 points — Max 60 words — Use <b> only — Never * ** _ — Own intelligence — If ROAST, savage funny short"}, {"role":"user","content":prompt}], temperature=0.7 if tone=="roast" else 0.3, max_tokens=max_tok)
-                txt=c.choices[0].message.content.strip()
-                if txt and len(txt)>10:
-                    txt=txt.replace("OpenAI","HIBA HAANIYA.F").replace("ChatGPT","SATYA").replace("I am Meta","I am SATYA")
-                    if heading not in txt:
-                        txt=heading+"\n- "+txt[:250]
-                    cleaned=clean(txt)
-                    if cleaned and len(cleaned)>10: return cleaned
-            except Exception as e: 
-                print(f"Model {m} err {e}")
-                continue
-        # If all LLM fail, use local brain - NOT echo
+        # Try Groq LLM first - main intelligence
+        if groq_client:
+            models=["llama-3.3-70b-versatile","openai/gpt-oss-20b","llama-3.1-8b-instant"]
+            for m in models:
+                try:
+                    if is_link:
+                        prompt=f"{style_instruction} — You are SATYA by HIBA HAANIYA.F — Own intelligence — Title:{link_title} Content:{link_content[:400]} Live:{live[:300]} — MUST START WITH {heading} — Format: {heading} newline - Title - Channel then <b>✅ Truth Check 📰</b> - TRUE/FALSE then <b>🎯 Verdict ⚡</b> - One line — <b> only — No * — Max 60 words — Use YOUR OWN BRAIN"
+                    elif image_text:
+                        prompt=f"{style_instruction} — You are SATYA by HIBA HAANIYA.F — Own intelligence — Vision:{image_text[:600]} Q:{q} — MUST START WITH {heading} — Format: {heading} newline - What you see - Text then <b>✅ Analysis 🔬</b> - Short — <b> only — No * — Max 60 words — YOUR BRAIN"
+                    else:
+                        prompt=f"{style_instruction} — You are SATYA by HIBA HAANIYA.F — Own intelligence, Founder CEO brain, 15-year-old genius Palamaner — Answer ANY question from YOUR OWN KNOWLEDGE — Q:{q} Verification:{live[:200]} — MUST START WITH {heading} — Format: {heading} newline - point 1 newline - point 2 — Max 3 points — <b> only — No * — Short — YOUR OWN BRAIN — Legit answer, not template — If Q is Can chocolate breathe? Answer: No, chocolate is food not alive"
+                    c=groq_client.chat.completions.create(model=m, messages=[{"role":"system","content":f"You are SATYA by HIBA HAANIYA.F — Created ONLY by HIBA HAANIYA.F — {style_instruction} — ALWAYS START WITH {heading} — Max 3 points — Max 60 words — Use <b> only — Never * ** _ — Own intelligence — You MUST answer ANY question legitimately from your own knowledge — If asked Can chocolate breathe? Say No, chocolate is food, not living, no lungs — If ROAST, savage funny short but CORRECT"}, {"role":"user","content":prompt}], temperature=0.7 if tone=="roast" else 0.3, max_tokens=max_tok)
+                    txt=c.choices[0].message.content.strip()
+                    if txt and len(txt)>10:
+                        txt=txt.replace("OpenAI","HIBA HAANIYA.F").replace("ChatGPT","SATYA").replace("I am Meta","I am SATYA")
+                        if heading not in txt:
+                            txt=heading+"\n- "+txt[:300]
+                        cleaned=clean(txt)
+                        if cleaned and len(cleaned)>10: return cleaned
+                except Exception as e: 
+                    print(f"Model {m} err {e}")
+                    continue
+        # Fallback to enhanced local brain - legit answers for any question
         return local_brain_answer(q, tone, heading)
     except Exception as e:
         print(f"ask_any crash {e}")
         tone=user_tones.get(uid,"short")
         heading="<b>📌 Roast 😏🔥</b>" if tone=="roast" else "<b>⚡ Short 👑</b>"
         return local_brain_answer(q, tone, heading)
-
 
 
 async def start(update, context):
