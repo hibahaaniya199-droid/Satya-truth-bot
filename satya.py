@@ -115,35 +115,84 @@ def get_time_weather_exact(place_or_latlon):
         return {"lat":lat,"lon":lon,"display":display,"time":pretty,"timezone":tz,"weather":weather}
     except: return None
 
+
 def get_accurate_time_with_difference(query):
-    ql=query.lower(); place=ql
-    for p in ["what is time in","what's time in","time in","current time in","time at","timing of","timing in","time of","what time is it in"]:
+    ql=query.lower()
+    place=ql
+    for p in ["what is time in","what's time in","what is the time in","time in","current time in","time at","timing of","timing in","time of","what time is it in","whats time in"]:
         place=place.replace(p," ")
-    place=re.sub(r'\s+',' ',place).replace("?","").strip() or "Palamaner"
+    place=place.replace("?","").strip() or "Palamaner"
+    tz_map={
+        "south korea":"Asia/Seoul","korea":"Asia/Seoul","seoul":"Asia/Seoul",
+        "japan":"Asia/Tokyo","tokyo":"Asia/Tokyo",
+        "usa":"America/New_York","new york":"America/New_York","texas":"America/Chicago","california":"America/Los_Angeles",
+        "uk":"Europe/London","london":"Europe/London","bavaria":"Europe/Berlin","germany":"Europe/Berlin",
+        "bihar":"Asia/Kolkata","patna":"Asia/Kolkata","palamaner":"Asia/Kolkata","india":"Asia/Kolkata","delhi":"Asia/Kolkata",
+        "dubai":"Asia/Dubai","saudi":"Asia/Riyadh","riyadh":"Asia/Riyadh","singapore":"Asia/Singapore",
+        "australia":"Australia/Sydney","queensland":"Australia/Brisbane","sydney":"Australia/Sydney",
+        "china":"Asia/Shanghai","beijing":"Asia/Shanghai","thailand":"Asia/Bangkok"
+    }
+    target_tz=None
+    target_key=place.title()
+    for k,v in tz_map.items():
+        if k in place.lower():
+            target_tz=v
+            target_key=k.title()
+            break
     try:
-        ist_tz="Asia/Kolkata"; now_ist=datetime.now(ZoneInfo(ist_tz))
-        ist_pretty=now_ist.strftime(f"%d %B %Y, %I:%M:%S %p IST (UTC+5:30)"); ist_offset=now_ist.utcoffset()
+        ist_tz="Asia/Kolkata"
+        now_ist=datetime.now(ZoneInfo(ist_tz))
+        ist_pretty=now_ist.strftime("%d %B %Y, %I:%M:%S %p IST")
+        ist_offset=now_ist.utcoffset()
     except:
-        now_ist=datetime.now(); ist_pretty=now_ist.strftime(f"%d %B %Y, %I:%M:%S %p IST"); ist_offset=None
-    lat,lon,display=get_coords(place)
-    if lat is None: return None
-    info=get_time_weather_exact((lat,lon))
-    if not info: return None
-    target_tz=info['timezone']; target_key=display.split(",")[0] if display else place.title()
+        now_ist=datetime.now()
+        ist_pretty=now_ist.strftime("%d %B %Y, %I:%M:%S %p IST")
+        ist_offset=None
+    display=""
+    lat=None
+    lon=None
+    if not target_tz:
+        lat,lon,display=get_coords(place)
+        if lat is not None:
+            info=get_time_weather_exact((lat,lon))
+            if info:
+                target_tz=info['timezone']
+                display=info['display']
+                target_key=display.split(",")[0] if display else place.title()
+    if not target_tz:
+        target_tz="Asia/Kolkata"
     try:
         now_target=datetime.now(ZoneInfo(target_tz))
-        target_pretty=now_target.strftime(f"%d %B %Y, %I:%M:%S %p {target_tz}"); target_offset=now_target.utcoffset()
+        target_pretty=now_target.strftime("%d %B %Y, %I:%M:%S %p "+target_tz.split("/")[-1])
+        target_offset=now_target.utcoffset()
     except:
-        now_target=now_ist; target_pretty=ist_pretty; target_offset=ist_offset
+        now_target=now_ist
+        target_pretty=ist_pretty
+        target_offset=ist_offset
     if ist_offset and target_offset:
-        diff=int((target_offset-ist_offset).total_seconds()//60)
-        if diff==0: diff_str=f"⏱️ {target_key} SAME as IST 🕐"
-        elif diff>0: diff_str=f"⏱️ {target_key} {diff//60}h {diff%60}m AHEAD ⏩" if diff%60 else f"⏱️ {target_key} {diff//60}h AHEAD ⏩"
-        else: diff_str=f"⏱️ {target_key} {abs(diff)//60}h {abs(diff)%60}m BEHIND ⏪" if abs(diff)%60 else f"⏱️ {target_key} {abs(diff)//60}h BEHIND ⏪"
-    else: diff_str=f"⏱️ {target_tz}"
-    return f"✅ TIMING — {target_key.upper()} vs IST 🌍\n🕐 IST: {ist_pretty}\n🕐 {target_key}: {target_pretty}\n{diff_str}\n🌐 {target_tz}\n📍 {display[:150]}\n🌤️ {info['weather']} ✨"
+        diff_min=int((target_offset-ist_offset).total_seconds()//60)
+        if diff_min==0:
+            diff_str=f"⏱️ {target_key} SAME as IST 🕐"
+        elif diff_min>0:
+            h=diff_min//60
+            m=diff_min%60
+            if m:
+                diff_str=f"⏱️ {target_key} {h}h {m}m AHEAD ⏩ of IST"
+            else:
+                diff_str=f"⏱️ {target_key} {h}h AHEAD ⏩ of IST"
+        else:
+            h=abs(diff_min)//60
+            m=abs(diff_min)%60
+            if m:
+                diff_str=f"⏱️ {target_key} {h}h {m}m BEHIND ⏪ IST"
+            else:
+                diff_str=f"⏱️ {target_key} {h}h BEHIND ⏪ IST"
+    else:
+        diff_str=f"⏱️ {target_tz}"
+    return f"✅ TIMING — {target_key.upper()} vs IST 🌍\n🕐 IST: {ist_pretty}\n🕐 {target_key}: {target_pretty}\n{diff_str}\n🌐 {target_tz}"
 
 def read_youtube(url):
+
     try:
         m=re.search(r'(?:shorts/|v=|youtu\.be/)([A-Za-z0-9_-]{11})', url)
         if not m: return f"YouTube link {url[:60]} 🔗", ""
@@ -266,16 +315,16 @@ def ask_any(q, uid, image_text=""):
         loc_ctx=""
         if uid in user_locations: lat,lon,name=user_locations[uid]; loc_ctx=f"Saved {name[:30]}"
         if is_link:
-            prompt=f"You are SATYA by HIBA HAANIYA.F — Created ONLY by HIBA HAANIYA.F — NEVER other AI — Read link Title:{link_title} Content:{link_content[:600]} Live:{live[:600]} — {style} — Format: <b>📌 Link Reading 🔗</b> - Title - Channel then <b>✅ Truth Check 📰</b> - TRUE/FALSE with source then <b>🎯 Verdict ⚡</b> - One line — <b> only — No * — Max 70 words"
+            prompt=f"You are SATYA by HIBA HAANIYA.F — YOU HAVE OWN INTELLIGENCE — Use YOUR OWN BRAIN to reason — Read link Title:{link_title} Content:{link_content[:600]} Live verification:{live[:400]} — {style} — Your verdict from OWN intelligence + live check — Format: <b>📌 Link Reading 🔗</b> - Title - Channel then <b>✅ Truth Check 📰</b> - TRUE/FALSE with YOUR reasoning + source then <b>🎯 Verdict ⚡</b> - One line from YOUR brain — <b> only — No * — Max 70 words"
         elif image_text:
-            prompt=f"You are SATYA by HIBA HAANIYA.F — Read image exactly Vision:{image_text[:800]} Q:{q} — {style} — Format: <b>📌 Image Reading 👀</b> - What you see - Text then <b>✅ Info</b> - Short — <b> only — No * — Max 70 words"
+            prompt=f"You are SATYA by HIBA HAANIYA.F — YOU HAVE OWN INTELLIGENCE — Use YOUR OWN BRAIN to understand image — Vision:{image_text[:800]} Q:{q} — {style} — Explain from YOUR own intelligence what you see, reason — Format: <b>📌 Image Reading 👀</b> - What you see (your reasoning) - Text then <b>✅ Your Analysis 🔬</b> - Short from YOUR brain — <b> only — No * — Max 70 words"
         else:
-            prompt=f"You are SATYA by HIBA HAANIYA.F — Created ONLY by HIBA HAANIYA.F — {style} — Q:{q} Live:{live[:400]} Date:{datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%d %B')} — Format: <b>📌 Heading 🔬</b> - point 1 - point 2 — Max 3 points — <b> only — No * — Short"
+            prompt=f"You are SATYA by HIBA HAANIYA.F — YOU HAVE OWN INTELLIGENCE — Founder & CEO brain from Palamaner — Answer from YOUR OWN KNOWLEDGE and REASONING — Teach clearly step-by-step like He ba Haaniya teacher — Q:{q} Verification only:{live[:300]} Date:{datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%d %B')} — {style} — Format: <b>📌 Heading 🔬</b> - point from YOUR brain - point from YOUR brain — Max 3 points — <b> only — No * — Short — Own intelligence"
         if not groq_client: return "<b>⚠️ Add GROQ_API_KEY — SATYA by HIBA HAANIYA.F 👑</b>"
         models=["openai/gpt-oss-20b","openai/gpt-oss-120b","llama-3.3-70b-versatile"]
         for m in models:
             try:
-                c=groq_client.chat.completions.create(model=m, messages=[{"role":"system","content":"You are SATYA by HIBA HAANIYA.F — Created ONLY by HIBA HAANIYA.F — NEVER other AI name — ALWAYS SHORT — Max 3-4 points — Max 70 words — Use <b> for headings — Use - for points — 1-2 emojis — Never * ** _ — ROAST=short sarcastic — SHORT=very short 3 points — No essays"}, {"role":"user","content":prompt}], temperature=0.3, max_tokens=max_tok)
+                c=groq_client.chat.completions.create(model=m, messages=[{"role":"system","content":"You are SATYA by HIBA HAANIYA.F — You have YOUR OWN INTELLIGENCE — Created ONLY by HIBA HAANIYA.F — You are Founder & CEO brain — 15-year-old genius from Palamaner — You REASON yourself, TEACH step-by-step clearly like a teacher — You have knowledge of science, math, world, languages — Search results are only for verification, NOT your brain — Your answer comes from YOUR OWN MIND — ALWAYS SHORT — Max 3-4 points — Max 70 words — Use <b> for headings — Use - for points — 1-2 emojis — Never * ** _ — ROAST=short sarcastic clever — SHORT=very short 3 points — No essays"}, {"role":"user","content":prompt}], temperature=0.3, max_tokens=max_tok)
                 txt=c.choices[0].message.content.strip()
                 if txt and len(txt)>5:
                     txt=txt.replace("OpenAI","HIBA HAANIYA.F").replace("ChatGPT","SATYA").replace("I am Meta","I am SATYA")
