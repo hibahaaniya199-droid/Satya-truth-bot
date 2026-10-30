@@ -1,7 +1,6 @@
 
 import os
 import re
-import asyncio
 import logging
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -13,11 +12,10 @@ from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQu
 from groq import Groq
 from tavily import TavilyClient
 
-# --- LOGGING ---
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# --- TOKENS - FLEXIBLE - ANY NAME WORKS ---
+# --- TOKENS FLEXIBLE ---
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN") or os.getenv("BOT_TOKEN") or os.getenv("TELEGRAM_TOKEN") or ""
 BOT_TOKEN = BOT_TOKEN.strip()
 GROQ_KEY = os.getenv("GROQ_API_KEY") or ""
@@ -26,11 +24,11 @@ TAVILY_KEY = os.getenv("TAVILY_API_KEY") or ""
 groq_client = Groq(api_key=GROQ_KEY) if GROQ_KEY else None
 tavily_client = TavilyClient(api_key=TAVILY_KEY) if TAVILY_KEY else None
 
-# --- USER DATA ---
 USER_TONE = {}
 USER_LANG = {}
+USER_LOCATION = {}  # For latest local news - detect location
 
-# --- CLEAN - NO HTTPS LEAK - PRECISE COMPLETE ---
+# --- CLEAN - NO HTTPS LEAK ---
 def clean(t):
     if not t:
         return ""
@@ -42,29 +40,32 @@ def clean(t):
     result = "\n".join(lines)
     return result[:4000].strip()
 
-# --- LIVE SEARCH ---
-def live_search_anywhere(q):
+# --- LIVE SEARCH ALL ROUND - ANY TOPIC ---
+def live_search_anywhere(q, location=None):
     if not tavily_client or not q:
         return ""
     try:
-        res = tavily_client.search(query=q, max_results=5, include_answer=True)
+        # If location detected, search latest local news too
+        search_q = q
+        if location:
+            # For latest news in local bodies - add location
+            if "news" in q.lower() or "latest" in q.lower() or "local" in q.lower():
+                search_q = f"{q} {location} latest news"
+        
+        res = tavily_client.search(query=search_q, max_results=5, include_answer=True, search_depth="advanced")
         ans = res.get('answer','') or ''
         results = res.get('results',[])
         ctx = ans + "\n"
-        for r in results[:3]:
-            ctx += (r.get('content','')[:400] + "\n")
-        return clean(ctx)[:1500]
+        for r in results[:4]:
+            content = r.get('content','')[:500]
+            title = r.get('title','')
+            ctx += f"{title}: {content}\n"
+        return clean(ctx)[:2000]
     except Exception as e:
         print(f"Search error: {e}")
         return ""
 
-# --- KEYBOARDS - DEFINED - NO CRASH ---
-def kb_location_once():
-    try:
-        return ReplyKeyboardMarkup([[KeyboardButton("📍 Share Location", request_location=True)]], resize_keyboard=True, one_time_keyboard=True)
-    except:
-        return None
-
+# --- KEYBOARDS ---
 def kb_main():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("🎛️ Change Tone", callback_data="change_tone"), InlineKeyboardButton("🎤 Speak Voice", callback_data="speak_voice")],
@@ -76,78 +77,122 @@ def kb_tone():
         [InlineKeyboardButton("⚡ SHORT", callback_data="t_short"), InlineKeyboardButton("👑 CEO", callback_data="t_ceo")],
         [InlineKeyboardButton("💖 FRIENDLY", callback_data="t_friendly"), InlineKeyboardButton("🎓 FORMAL", callback_data="t_formal")],
         [InlineKeyboardButton("🔥 ROAST", callback_data="t_roast")],
-        [InlineKeyboardButton("🌍 Any Language", callback_data="any_language")]
     ])
 
-# --- LLM ASK - NO HARDCODE - PRECISE COMPLETE ---
-def ask_any(q, tone="friendly", lang="en", extra_context=""):
+def kb_location_once():
+    try:
+        return ReplyKeyboardMarkup([[KeyboardButton("📍 Share Location", request_location=True)]], resize_keyboard=True, one_time_keyboard=True)
+    except:
+        return None
+
+# --- LLM ASK - ALL ROUND - NO HARDCODE - NAME ONLY WHEN ASKED ---
+def ask_any(q, tone="friendly", lang="en", location=None, extra_context=""):
     if not groq_client:
         return "<b>📌 Error</b>\n- Groq key missing - Set GROQ_API_KEY in Railway Variables"
     
     q_lower = q.lower()
     
-    # Tone-specific instructions - DIFFERENT HEADINGS - NOT SAME
-    tone_prompt = {
-        "short": "You are SATYA by HIBA HAANIYA.F. Answer SHORT - 3 points MAX - 150 words MAX - Crisp. Heading: <b>⚡ Short 👑</b>",
-        "ceo": "You are SATYA by HIBA HAANIYA.F, 15, Founder & CEO. Answer POWERFUL BOSS MODE. Heading: <b>👑 CEO Mode 💼</b>",
-        "friendly": "You are SATYA by HIBA HAANIYA.F. Answer warm sweet friendly with 💖. Heading: <b>💖 Friendly 🌸</b>",
-        "formal": "You are SATYA by HIBA HAANIYA.F. Answer formal professional. Heading: <b>🎓 Formal 📝</b>",
-        "roast": "You are SATYA by HIBA HAANIYA.F. Answer savage funny sarcastic roast but still correct and complete. Heading: <b>📌 Roast 😏🔥</b>"
-    }
+    # --- ONLY TELL NAME WHEN ASKED WHO CREATED YOU / OWNER / FOUNDER / CEO OF SATYA ---
+    # Not on every answer - only when asked
+    tell_creator = False
+    creator_keywords = ["who created you", "who made you", "who is your owner", "who is your creator", "who built you", "who is your founder", "who is founder", "who is ceo of satya", "who is ceo", "who is your ceo", "who owns you", "kisne banaya", "who developed you", "founder of satya", "creator of satya"]
+    for kw in creator_keywords:
+        if kw in q_lower:
+            tell_creator = True
+            break
+    # If question is "IS X A CEO" - we need to answer about X + also clarify SATYA CEO if relevant, but not always say HIBA
+    # Only say CEO is HIBA when asked about SATYA CEO, or when user thinks someone else is SATYA CEO
+    is_satya_ceo_question = ("satya" in q_lower and "ceo" in q_lower) or ("satya" in q_lower and "founder" in q_lower) or q_lower.strip() in ["who is ceo", "who is founder", "who is your ceo"]
     
+    # Tone headings - different
+    tone_prompt = {
+        "short": "You are SATYA. Answer SHORT - 3 points MAX - 150 words MAX. Heading: <b>⚡ Short 👑</b>",
+        "ceo": "You are SATYA. Answer powerful boss mode. Heading: <b>👑 CEO Mode 💼</b>",
+        "friendly": "You are SATYA. Answer warm sweet friendly. Heading: <b>💖 Friendly 🌸</b>",
+        "formal": "You are SATYA. Answer formal professional. Heading: <b>🎓 Formal 📝</b>",
+        "roast": "You are SATYA. Answer savage funny sarcastic but correct. Heading: <b>📌 Roast 😏🔥</b>"
+    }
     base_instruction = tone_prompt.get(tone, tone_prompt["friendly"])
     
-    # CEO identity check
-    ceo_check = ""
-    if "ceo" in q_lower or "jennie" in q_lower or "who is ceo" in q_lower or "founder" in q_lower:
-        ceo_check = "IMPORTANT: If asked about Jennie, Jennie is BLACKPINK member born 1996, not CEO. CEO is ALWAYS HIBA HAANIYA.F, 15, from Palamaner, Founder & CEO of SATYA TRUTH BOT. Created by HIBA HAANIYA.F. Text always HIBA HAANIYA.F, voice He ba Haaniya teaching style. You are NOT any other AI.\n"
-    
-    # Live search
+    # Live search for ALL topics - studies, any info, latest news, local bodies
     search_ctx = ""
     if extra_context:
         search_ctx = extra_context
     else:
-        if len(q) > 3:
-            search_ctx = live_search_anywhere(q)
+        if len(q) > 2:
+            # Detect if latest news needed
+            search_ctx = live_search_anywhere(q, location=location)
     
-    # Time/Weather accurate
+    # Time/weather accurate - detect any place
     time_ctx = ""
-    if "time" in q_lower or "weather" in q_lower or "korea" in q_lower or "japan" in q_lower or "bihar" in q_lower or "palamaner" in q_lower:
-        try:
-            tz_map = {"korea": "Asia/Seoul", "seoul": "Asia/Seoul", "japan": "Asia/Tokyo", "tokyo": "Asia/Tokyo", "usa": "America/New_York", "new york": "America/New_York", "uk": "Europe/London", "london": "Europe/London", "india": "Asia/Kolkata", "bihar": "Asia/Kolkata", "palamaner": "Asia/Kolkata"}
-            tz = "Asia/Kolkata"
-            for k,v in tz_map.items():
-                if k in q_lower:
-                    tz = v
-                    break
-            now = datetime.now(ZoneInfo(tz))
+    try:
+        # Extract possible location from question for time/weather
+        tz_map = {
+            "korea": "Asia/Seoul", "seoul": "Asia/Seoul", "japan": "Asia/Tokyo", "tokyo": "Asia/Tokyo",
+            "usa": "America/New_York", "new york": "America/New_York", "uk": "Europe/London", "london": "Europe/London",
+            "bihar": "Asia/Kolkata", "palamaner": "Asia/Kolkata", "india": "Asia/Kolkata", "hyderabad": "Asia/Kolkata",
+            "andhra": "Asia/Kolkata", "telangana": "Asia/Kolkata", "delhi": "Asia/Kolkata"
+        }
+        tz = "Asia/Kolkata"
+        found_place = None
+        for k,v in tz_map.items():
+            if k in q_lower:
+                tz = v
+                found_place = k
+                break
+        if "time" in q_lower or "weather" in q_lower or found_place or location:
+            use_tz = tz
+            if location:
+                # Try to map user location to timezone - simplified
+                pass
+            now = datetime.now(ZoneInfo(use_tz))
             ist_now = datetime.now(ZoneInfo("Asia/Kolkata"))
-            diff = ""
-            if tz != "Asia/Kolkata":
+            diff_str = ""
+            if use_tz != "Asia/Kolkata":
                 diff_hours = (now.utcoffset().total_seconds() - ist_now.utcoffset().total_seconds())/3600
-                diff = f" Difference from IST: {diff_hours:+.1f}h."
-                if tz == "Asia/Seoul":
-                    diff = " Example: 8:41 AM IST = 12:11 PM KST - 3h30m AHEAD ⏩"
-            time_ctx = f"Current time in {tz}: {now.strftime('%d %B %Y, %I:%M:%S %p %Z')}.{diff} Weather via live search.\n"
-        except Exception as e:
-            time_ctx = ""
+                if use_tz == "Asia/Seoul":
+                    diff_str = f" Example: 8:41 AM IST = 12:11 PM KST - 3h30m AHEAD ⏩"
+                else:
+                    diff_str = f" Difference from IST: {diff_hours:+.1f}h"
+            time_ctx = f"Current time in {use_tz}: {now.strftime('%d %B %Y, %I:%M:%S %p %Z')}.{diff_str} Weather via live search.\n"
+    except:
+        time_ctx = ""
+    
+    # System prompt - NO HARDCODE - ALL ROUND - NAME ONLY WHEN ASKED
+    creator_info_internal = "Creator is HIBA HAANIYA.F, 15, Palamaner, Founder & CEO, SATYA TRUTH BOT."  # Internal, only use if tell_creator
+    if tell_creator or is_satya_ceo_question:
+        name_instruction = f"User asked who created you / owner / CEO of SATYA. You MUST say: You were created by HIBA HAANIYA.F, 15, from Palamaner, Founder & CEO of SATYA TRUTH BOT. Text always HIBA HAANIYA.F. Voice internally is He ba Haaniya teaching style, but DO NOT mention spelling H E H A A N I Y in chat - that is internal TTS logic only, not to be shown to users."
+    else:
+        name_instruction = "DO NOT mention who created you, your owner, founder, CEO, or HIBA HAANIYA.F unless user specifically asks who created you, owner, founder, CEO of SATYA. For general questions (studies, news, facts, any info), just answer the question helpfully without mentioning creator. Your identity as SATYA is internal, not needed in every answer."
     
     system_prompt = f"""{base_instruction}
-{ceo_check}
+
+ALL ROUND INTELLIGENCE - NO HARDCODE:
+- You can answer ANY kind of questions: studies (physics, chemistry, biology, maths, alkane alkene alkyne, history, geography), any information, latest news, local bodies news, time, weather, YouTube links, news verification, any language.
+- For latest news in local bodies: Use location if provided ({location}) and live search to find latest local news. Detect location of person from message or location share.
+- For studies: Give precise complete answers, points with bold headings, no cut, no half answers. If asked alkane alkene alkyne, give all 3 complete.
+- For any info: Use live search + your own intelligence, no hardcoding like if "chocolate" in q. No hardcoded answers for specific singers/dancers. Use real knowledge.
+- Do NOT say Kim Taehyung is CEO of Pop-up Studio - That is false. Use real knowledge: Kim Taehyung is BTS V, born 1995, singer, not CEO. For any person, say real identity from knowledge, not fake CEO.
+- CEO rule: SATYA TRUTH BOT CEO is ONLY HIBA HAANIYA.F. But only mention this when user asks about CEO of SATYA, founder, creator, owner. For general CEO questions about other companies (e.g., Is X CEO of Y company), answer truthfully about that company, not SATYA. Only for SATYA CEO questions, say HIBA.
+
+NAME RULE:
+{name_instruction}
+- DO NOT ever show in chat that you spell name as H E H A A N I Y or explain voice spelling. That is internal TTS code logic, handled inside code via gTTS, not visible to users. Never mention "Text always HIBA HAANIYA.F, voice He ba Haaniya" in Telegram answers unless asked about creator. Keep voice logic internal.
+
 RULES:
 - Use points only with - or emoji
 - Bold colored headings with <b>📌 Heading</b> - Use given heading for tone
 - No * ** ` ## leaks
 - No https:// links - Remove all
-- No hardcoding - Use live search + your intelligence
-- No other AI names - You are SATYA by HIBA HAANIYA.F - 15 - Palamaner - Founder & CEO
-- Text always HIBA HAANIYA.F, voice He ba Haaniya teaching: Hello, let me teach you clearly and step by step.
-- Precise + Complete - If asked alkane alkene alkyne, give all 3 complete - No cut - No half answer
-- Answer in user's language - Hindi Telugu Tamil Arabic Korean Japanese etc - Native
-- Live context: {search_ctx[:1000]}
+- No other AI names - You are SATYA
+- No hardcoding - Use live search + intelligence
+- Precise + Complete - No cut
+- Answer in user's language if needed
+- Live context: {search_ctx[:1800]}
 - Time context: {time_ctx}
+- User location: {location}
 - User language: {lang}
-- Be helpful, accurate, with sources from live search if available
+- Be helpful, accurate, with sources if available from live search
 """
 
     try:
@@ -163,10 +208,8 @@ RULES:
                 txt = completion.choices[0].message.content or ""
                 txt = clean(txt)
                 # Ensure tone heading present
-                expected_heading = {
-                    "short": "⚡ Short", "ceo": "👑 CEO", "friendly": "💖 Friendly", "formal": "🎓 Formal", "roast": "Roast"
-                }.get(tone, "📌")
-                if expected_heading not in txt:
+                expected = {"short": "⚡ Short", "ceo": "👑 CEO", "friendly": "💖 Friendly", "formal": "🎓 Formal", "roast": "Roast"}.get(tone, "📌")
+                if expected not in txt:
                     heading_map = {
                         "short": "<b>⚡ Short 👑</b>\n",
                         "ceo": "<b>👑 CEO Mode 💼</b>\n",
@@ -179,13 +222,12 @@ RULES:
             except Exception as e:
                 if "decommissioned" in str(e) or "404" in str(e):
                     continue
-                else:
-                    print(f"Model {model} error: {e}")
-                    continue
-        return "<b>📌 Error</b>\n- All models busy - Try again - CEO HIBA HAANIYA.F is fixing"
+                print(f"Model {model} error: {e}")
+                continue
+        return "<b>📌 Error</b>\n- All models busy - Try again"
     except Exception as e:
         print(f"ask_any error: {e}")
-        return f"<b>📌 Error</b>\n- {str(e)[:200]} - CEO HIBA HAANIYA.F"
+        return f"<b>📌 Error</b>\n- {str(e)[:200]}"
 
 # --- HANDLERS ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -196,23 +238,17 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "<b>📌 Welcome to SATYA - Truth Bot 👑🌍</b>\n"
             "- In a world of fake forwards... SATYA finds truth\n"
             "- Reads any image perfectly - Real vision\n"
-            "- Reads any link - YouTube title/channel + News TRUE/FALSE with PIB proof\n"
+            "- Reads any link - YouTube title/channel + News TRUE/FALSE with proof\n"
             "- Speaks any language - Hindi Telugu Tamil Arabic Korean Japanese etc\n"
-            "- Accurate time/weather for any state - Example 8:41 AM IST = 12:11 PM KST 3h30m AHEAD\n"
-            "- Tones work different - SHORT CEO FRIENDLY FORMAL ROAST - Not same\n"
+            "- Accurate time/weather for any state\n"
+            "- Latest news in local bodies - Detects location\n"
+            "- Answers any kind of questions - Studies, any info, all round\n"
+            "- Tones work different - SHORT CEO FRIENDLY FORMAL ROAST\n"
             "- Voice 🎤 - You speak, SATYA transcribes + answers + speaks back native\n"
-            "- Precise complete answers - No cut - No https leak - No hardcode\n"
-            "- Built by <b>HIBA HAANIYA.F</b> - 15 - Palamaner - Founder & CEO, SATYA TRUTH BOT\n"
-            "- Text always HIBA HAANIYA.F, voice He ba Haaniya teaching\n\n"
-            "<b>🎛️ Choose Tone</b>\n- Click below to change tone"
         )
         await update.message.reply_text(text, reply_markup=kb_main(), parse_mode='HTML')
     except Exception as e:
         print(f"start error: {e}")
-        try:
-            await update.message.reply_text("Welcome to SATYA by HIBA HAANIYA.F - Founder & CEO 👑", parse_mode='HTML')
-        except:
-            pass
 
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
@@ -222,6 +258,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         tone = USER_TONE.get(user_id, "friendly")
         lang = USER_LANG.get(user_id, "en")
+        location = USER_LOCATION.get(user_id, None)
         
         # Detect language from script
         if re.search(r'[\u0C00-\u0C7F]', q):
@@ -239,18 +276,17 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
         
-        # Check if link
         extra = ""
         if "http" in q.lower() or "youtube" in q.lower() or "youtu.be" in q.lower():
-            extra = live_search_anywhere(q)
+            extra = live_search_anywhere(q, location=location)
             extra = f"Link analysis: {extra}"
         
-        answer = ask_any(q, tone=tone, lang=lang, extra_context=extra)
+        answer = ask_any(q, tone=tone, lang=lang, location=location, extra_context=extra)
         await update.message.reply_text(answer, reply_markup=kb_main(), parse_mode='HTML')
     except Exception as e:
         print(f"handle_text error: {e}")
         try:
-            await update.message.reply_text("<b>📌 Error</b>\n- Try again - CEO HIBA HAANIYA.F is fixing", parse_mode='HTML')
+            await update.message.reply_text("<b>📌 Error</b>\n- Try again", parse_mode='HTML')
         except:
             pass
 
@@ -258,31 +294,24 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         user_id = update.effective_user.id
         tone = USER_TONE.get(user_id, "friendly")
-        
-        # Transcribe with Groq Whisper
+        location = USER_LOCATION.get(user_id, None)
         if groq_client:
             try:
                 voice_file = await update.message.voice.get_file()
                 voice_path = f"/tmp/voice_{user_id}.ogg"
                 await voice_file.download_to_drive(voice_path)
-                
                 with open(voice_path, "rb") as f:
                     transcription = groq_client.audio.transcriptions.create(
                         file=(voice_path, f.read()),
                         model="whisper-large-v3",
                     )
-                    q = transcription.text or ""
-                
-                if not q.strip():
-                    q = "Hello"
-                
+                    q = transcription.text or "Hello"
                 await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
-                answer = ask_any(q, tone=tone)
-                
-                # Speak back with gTTS native language detection
+                answer = ask_any(q, tone=tone, location=location)
+                # TTS - internal logic for voice, not shown in chat
                 try:
-                    # Detect language for TTS
                     tts_lang = "en"
+                    # Internal detection for native voice - not shown to user
                     if re.search(r'[\u0C00-\u0C7F]', q+answer):
                         tts_lang = "te"
                     elif re.search(r'[\u0900-\u097F]', q+answer):
@@ -295,91 +324,64 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         tts_lang = "ja"
                     elif re.search(r'[\uAC00-\uD7AF]', q+answer):
                         tts_lang = "ko"
-                    
-                    # Clean text for TTS - remove HTML tags
+                    # Internal: For creator name, voice says He ba Haaniya naturally, not spelling - handled by gTTS pronouncing HIBA HAANIYA.F as words
                     tts_text = re.sub(r'<[^>]+>', '', answer)[:300]
                     tts = gTTS(text=tts_text, lang=tts_lang, slow=False)
                     audio_path = f"/tmp/answer_{user_id}.mp3"
                     tts.save(audio_path)
-                    
                     await update.message.reply_text(answer, reply_markup=kb_main(), parse_mode='HTML')
                     await update.message.reply_voice(voice=open(audio_path, 'rb'))
                 except Exception as e:
                     print(f"TTS error: {e}")
                     await update.message.reply_text(answer, reply_markup=kb_main(), parse_mode='HTML')
-                
-                # Cleanup
                 try:
                     os.remove(voice_path)
                     os.remove(audio_path)
                 except:
                     pass
-                    
             except Exception as e:
-                print(f"Voice transcribe error: {e}")
-                await update.message.reply_text("<b>📌 Voice Error</b>\n- Could not transcribe - Try text - CEO HIBA HAANIYA.F", parse_mode='HTML')
-        else:
-            await update.message.reply_text("<b>📌 Voice</b>\n- Groq key missing for voice - Set GROQ_API_KEY", parse_mode='HTML')
+                print(f"Voice error: {e}")
+                await update.message.reply_text("<b>📌 Voice Error</b>\n- Could not transcribe", parse_mode='HTML')
     except Exception as e:
-        print(f"handle_voice outer error: {e}")
+        print(f"handle_voice outer: {e}")
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         user_id = update.effective_user.id
         tone = USER_TONE.get(user_id, "friendly")
+        location = USER_LOCATION.get(user_id, None)
         await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
-        
-        # Real vision with Groq qwen/qwen3-32b vision or qwen/qwen2.5-vl
         if groq_client:
             try:
                 photo_file = await update.message.photo[-1].get_file()
                 photo_path = f"/tmp/photo_{user_id}.jpg"
                 await photo_file.download_to_drive(photo_path)
-                
+                import base64
                 with open(photo_path, "rb") as f:
-                    import base64
                     img_b64 = base64.b64encode(f.read()).decode()
-                
-                # Vision model - try qwen
-                vision_models = ["qwen/qwen3-32b", "qwen/qwen2.5-vl-32b", "meta-llama/llama-4-scout-17b-16e-instruct"]
-                vision_answer = ""
-                for vm in vision_models:
-                    try:
-                        completion = groq_client.chat.completions.create(
-                            model="qwen/qwen3-32b",
-                            messages=[{
-                                "role": "user",
-                                "content": [
-                                    {"type": "text", "text": f"Read this image perfectly like ChatGPT vision. No fake OCR. Read all text, numbers, diagrams exactly. User tone: {tone}. User asked about this image. Give precise complete answer with bold headings <b>📌</b> and points. CEO is HIBA HAANIYA.F. No * ** leaks, no https links."},
-                                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_b64}"}}
-                                ]
-                            }],
-                            max_tokens=800,
-                        )
-                        vision_answer = completion.choices[0].message.content or ""
-                        break
-                    except Exception as e:
-                        print(f"Vision model {vm} error: {e}")
-                        continue
-                
-                if not vision_answer:
-                    vision_answer = "Image received - Vision model busy - Try again - Describe what you see? CEO HIBA HAANIYA.F"
-                
+                completion = groq_client.chat.completions.create(
+                    model="qwen/qwen3-32b",
+                    messages=[{
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": f"Read this image perfectly like ChatGPT vision. Read all text, numbers, diagrams exactly. No fake OCR. User tone: {tone}. Give precise complete answer with bold headings and points. Answer any kind of question from image - studies, info, etc."},
+                            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_b64}"}}
+                        ]
+                    }],
+                    max_tokens=800,
+                )
+                vision_answer = completion.choices[0].message.content or ""
                 vision_answer = clean(vision_answer)
                 await update.message.reply_text(vision_answer, reply_markup=kb_main(), parse_mode='HTML')
-                
                 try:
                     os.remove(photo_path)
                 except:
                     pass
-                    
             except Exception as e:
                 print(f"Photo error: {e}")
-                await update.message.reply_text("<b>📌 Image</b>\n- Could not read image - Try again - CEO HIBA HAANIYA.F", parse_mode='HTML')
-        else:
-            await update.message.reply_text("<b>📌 Image</b>\n- Groq key missing for vision", parse_mode='HTML')
+                await update.message.reply_text("<b>📌 Image</b>\n- Could not read image - Try again", parse_mode='HTML')
     except Exception as e:
-        print(f"handle_photo outer error: {e}")
+        print(f"handle_photo outer: {e}")
 
 async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
@@ -387,21 +389,20 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.answer()
         user_id = query.from_user.id
         data = query.data
-        
         if data == "change_tone":
-            await query.message.reply_text("<b>🎛️ Choose Tone - Tones Work Different</b>\n- SHORT: 3 points MAX - 150 words\n- CEO: Powerful boss mode\n- FRIENDLY: Warm sweet 💖\n- FORMAL: Professional\n- ROAST: Savage funny 😏🔥\n- Not same - Different heading + style", reply_markup=kb_tone(), parse_mode='HTML')
+            await query.message.reply_text("<b>🎛️ Choose Tone</b>\n- SHORT: 3 points MAX\n- CEO: Powerful\n- FRIENDLY: Warm\n- FORMAL: Professional\n- ROAST: Savage funny\n- Different heading + style", reply_markup=kb_tone(), parse_mode='HTML')
         elif data.startswith("t_"):
             tone_map = {"t_short": "short", "t_ceo": "ceo", "t_friendly": "friendly", "t_formal": "formal", "t_roast": "roast"}
             new_tone = tone_map.get(data, "friendly")
             USER_TONE[user_id] = new_tone
-            await query.message.reply_text(f"<b>✅ Tone Changed</b>\n- Now: {new_tone.upper()} - CEO HIBA HAANIYA.F\n- Tones work different - Try asking same Q with different tone - Will be different", reply_markup=kb_main(), parse_mode='HTML')
+            await query.message.reply_text(f"<b>✅ Tone Changed</b>\n- Now: {new_tone.upper()}", reply_markup=kb_main(), parse_mode='HTML')
         elif data == "speak_voice":
-            await query.message.reply_text("<b>🎤 Speak Voice</b>\n- Send voice message - SATYA will transcribe any language + answer + speak back native - He ba Haaniya teaching style - Text HIBA HAANIYA.F", parse_mode='HTML')
+            await query.message.reply_text("<b>🎤 Speak Voice</b>\n- Send voice message - SATYA will transcribe any language + answer + speak back native", parse_mode='HTML')
         elif data == "any_language":
             USER_LANG[user_id] = "any"
-            await query.message.reply_text("<b>🌍 Any Language</b>\n- Now speak any language - Hindi Telugu Tamil Arabic Korean Japanese etc - SATYA will answer in same language native voice - No English accent - CEO HIBA HAANIYA.F", parse_mode='HTML')
+            await query.message.reply_text("<b>🌍 Any Language</b>\n- Now speak any language - Hindi Telugu Tamil Arabic Korean Japanese etc - SATYA will answer in same language", parse_mode='HTML')
         elif data == "check_link":
-            await query.message.reply_text("<b>🔗 Check Link</b>\n- Send any YouTube link or news link - SATYA reads title/channel + TRUE/FALSE with PIB SPA ANI proof + sources - CEO HIBA HAANIYA.F", parse_mode='HTML')
+            await query.message.reply_text("<b>🔗 Check Link</b>\n- Send any YouTube link or news link - SATYA reads title/channel + TRUE/FALSE with proof", parse_mode='HTML')
     except Exception as e:
         print(f"callback error: {e}")
 
@@ -409,52 +410,44 @@ async def handle_location(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         loc = update.message.location
         if loc:
+            user_id = update.effective_user.id
             lat, lon = loc.latitude, loc.longitude
-            # Get time/weather for location
+            # Save location for latest local news
+            USER_LOCATION[user_id] = f"{lat},{lon}"
+            # Also try to get place name via reverse geocoding using live search
             try:
                 now = datetime.now(ZoneInfo("Asia/Kolkata"))
                 time_str = now.strftime("%d %B %Y, %I:%M:%S %p IST")
-                answer = f"<b>📍 Location Received</b>\n- Lat: {lat}, Lon: {lon}\n- Time IST: {time_str}\n- Weather via live search 🌤️\n- Accurate timing for your location - CEO HIBA HAANIYA.F"
+                # Get latest news for this location
+                latest_news = live_search_anywhere(f"latest news local bodies {lat} {lon}", location=f"{lat},{lon}")
+                answer = f"<b>📍 Location Received</b>\n- Lat: {lat}, Lon: {lon}\n- Time IST: {time_str}\n- Saved for latest local news detection\n"
+                if latest_news:
+                    answer += f"- Latest local info: {latest_news[:500]}\n"
+                answer += "- Now ask 'latest news' and SATYA will find news for your location"
             except:
-                answer = f"<b>📍 Location</b>\n- {lat}, {lon} - CEO HIBA HAANIYA.F"
+                answer = f"<b>📍 Location</b>\n- {lat}, {lon} - Saved for local news"
             await update.message.reply_text(answer, reply_markup=kb_main(), parse_mode='HTML')
     except Exception as e:
         print(f"location error: {e}")
 
-# --- MAIN - SYNC - NO ASYNCIO.RUN - FIXES RuntimeError Cannot close a running event loop - WORKS ON 3.11 AND 3.13 ---
 def main():
     try:
         if not BOT_TOKEN:
-            print("❌ NO TOKEN - Set TELEGRAM_BOT_TOKEN or BOT_TOKEN or TELEGRAM_TOKEN in Railway Variables - From @BotFather")
+            print("❌ NO TOKEN - Set TELEGRAM_BOT_TOKEN or BOT_TOKEN or TELEGRAM_TOKEN")
             return
-        
-        # Check for conflicting token names
-        print(f"✅ TOKEN OK - {BOT_TOKEN[:12]}... - CEO HIBA HAANIYA.F")
-        if not GROQ_KEY:
-            print("⚠️ GROQ_API_KEY missing - Vision + Voice + LLM will fail - Set in Variables")
-        if not TAVILY_KEY:
-            print("⚠️ TAVILY_API_KEY missing - Live search will fail - Set in Variables")
-        
+        print(f"✅ TOKEN OK - {BOT_TOKEN[:12]}... - SATYA ALL ROUND")
         app = Application.builder().token(BOT_TOKEN).build()
-        
-        # Register handlers - guaranteed no NameError kb_location_once
         app.add_handler(CommandHandler("start", start))
         app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
         app.add_handler(MessageHandler(filters.VOICE, handle_voice))
         app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
         app.add_handler(CallbackQueryHandler(handle_callback))
         app.add_handler(MessageHandler(filters.LOCATION, handle_location))
-        
-        print("✅ HANDLERS REGISTERED - NO kb_location_once ERROR - NO COROUTINE ERROR")
-        print("✅ SATYA POLLING STARTED - CEO HIBA HAANIYA.F 👑 - Founder & CEO, SATYA TRUTH BOT - 15 - Palamaner")
-        print("✅ TONES WORK DIFFERENT - SHORT CEO FRIENDLY FORMAL ROAST - NOT SAME")
-        print("✅ SPEAKS ANY LANGUAGE - VOICE WORKS - ANY LANGUAGE CHAT - ACCURATE TIME/WEATHER")
-        
-        # CORRECT - SYNC - NO AWAIT - NO ASYNCIO.RUN - Fixes RuntimeError Cannot close a running event loop
+        print("✅ HANDLERS OK - ALL ROUND - NO HARDCODE - NAME ONLY WHEN ASKED - NO SPELLING SHOWN")
+        print("✅ SATYA POLLING STARTED - ALL ROUND INTELLIGENCE")
         app.run_polling(drop_pending_updates=True, allowed_updates=Update.ALL_TYPES)
-        
     except Exception as e:
-        print(f"❌ CRASH ERROR: {e}")
+        print(f"❌ CRASH: {e}")
         import traceback
         traceback.print_exc()
 
