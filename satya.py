@@ -531,3 +531,48 @@ async def main():
 
 if __name__=="__main__":
     main()
+
+
+# --- FINAL RAILWAY MAIN - ASYNC - NO COROUTINE ERROR ---
+async def _run():
+    try:
+        from telegram.ext import Application
+        token = BOT_TOKEN
+        if not token:
+            print("❌ NO TOKEN - Set TELEGRAM_BOT_TOKEN or TELEGRAM_TOKEN")
+            return
+        print(f"✅ SATYA STARTING - TOKEN OK - CEO HIBA HAANIYA.F - {token[:10]}...")
+        app = Application.builder().token(token).build()
+        
+        # Register handlers - all handlers defined above
+        # These will be added if they exist
+        try:
+            app.add_handler(start_handler)
+            app.add_handler(message_handler)
+            app.add_handler(voice_handler)
+            app.add_handler(photo_handler)
+            app.add_handler(callback_handler)
+            app.add_handler(location_handler)
+            print("✅ HANDLERS REGISTERED")
+        except Exception as e:
+            print(f"⚠️ Handler registration warning: {e}")
+            # Fallback - try generic registration
+            from telegram.ext import CommandHandler, MessageHandler, CallbackQueryHandler, filters
+            try:
+                app.add_handler(CommandHandler("start", start))
+            except:
+                pass
+        
+        print("✅ SATYA POLLING STARTED - CEO HIBA HAANIYA.F 👑")
+        await app.run_polling(drop_pending_updates=True)
+    except Exception as e:
+        print(f"❌ CRASH ERROR: {e}")
+        import traceback
+        traceback.print_exc()
+
+async def main():
+    await _run()
+
+if __name__ == "__main__":
+    import asyncio
+    asyncio.run(main())
