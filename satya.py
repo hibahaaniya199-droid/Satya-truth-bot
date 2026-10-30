@@ -1,5 +1,7 @@
 
 import os, requests, re, json, tempfile, asyncio, base64
+
+
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup
@@ -7,6 +9,8 @@ from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQu
 from groq import Groq
 
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN") or os.getenv("BOT_TOKEN") or os.getenv("TELEGRAM_TOKEN") or ""
+BOT_TOKEN = BOT_TOKEN.strip() if BOT_TOKEN else ""
+# or os.getenv("BOT_TOKEN") or os.getenv("TELEGRAM_TOKEN") or ""
 BOT_TOKEN = BOT_TOKEN.strip()
 GROQ_KEY = os.getenv("GROQ_API_KEY")
 TAVILY_KEY = os.getenv("TAVILY_API_KEY")
@@ -35,18 +39,63 @@ def save_locs():
         pass
 
 def clean(t):
-    if not t:
-        return ""
-    # Remove https leak - no pubchem links
-    t = re.sub(r'https?://\S+', '', t)
-    t = t.replace("**","").replace("__","").replace("`","").replace("##","")
-    t = t.replace("*","")
-    lines = [x.strip() for x in t.split("\n") if x.strip()]
-    # Keep up to 30 lines for complete answers (was 12 - caused cut)
-    lines = lines[:30]
-    result = "\n".join(lines)
-    # Increase to 3500 chars for complete answers (was 1000 - caused half answer)
-    return result[:3500].strip()
+    if not t or len(t.strip()) < 2:
+        return "<b>⚡ SATYA by HIBA HAANIYA.F 👑</b> — Ask anything 🌍"
+    t = t.replace('<b>', '___B_OPEN___').replace('</b>', '___B_CLOSE___')
+    t = re.sub(r'<[^>]+>', '', t)
+    t = t.replace('___B_OPEN___', '<b>').replace('___B_CLOSE___', '</b>')
+    t = t.replace('**','').replace('__','')
+    t = re.sub(r'\*+', '', t)
+    t = re.sub(r'_+', '', t)
+    t = t.replace('|','').replace('`','')
+    t = re.sub(r'(?i)Answer\s*\(SATYA by HIBA HAANIYA\.F\)', '', t).strip()
+    t = re.sub(r'\n{3,}', '\n\n', t)
+    lines=[x.strip() for x in t.split('\n') if x.strip()][:12]
+    result='\n'.join(lines).strip()
+    return result[:1000] if result else "<b>SATYA by HIBA HAANIYA.F 👑</b>"
+
+def detect_native_lang(text):
+    if any('\u0900' <= c <= '\u097F' for c in text): return 'hi'
+    if any('\u0C00' <= c <= '\u0C7F' for c in text): return 'te'
+    if any('\u0B80' <= c <= '\u0BFF' for c in text): return 'ta'
+    if any('\u0C80' <= c <= '\u0CFF' for c in text): return 'kn'
+    if any('\u0D00' <= c <= '\u0D7F' for c in text): return 'ml'
+    if any('\u0980' <= c <= '\u09FF' for c in text): return 'bn'
+    if any('\u0600' <= c <= '\u06FF' for c in text): return 'ar'
+    if any('\uAC00' <= c <= '\uD7AF' for c in text): return 'ko'
+    if any('\u3040' <= c <= '\u30FF' for c in text): return 'ja'
+    return 'en'
+
+def get_native_speak_text(text):
+    t=text
+    t=re.sub(r'(?i)Answer\s*\(SATYA by HIBA HAANIYA\.F\)', '', t)
+    t=t.replace("HIBA HAANIYA.F","He ba Haaniya").replace("HIBA HAANIYA","He ba Haaniya").replace("HIBA","He ba").replace("SATYA","Sathya").replace(".F","")
+    t=re.sub(r'<[^>]+>', '', t)
+    t=re.sub(r'[✅❌⚠️🎤📍🕐🌤️🌍👑⚡🔥💖🎓🎛️⏱️🔍📰😏👀💀🤔🎬🎥🔗⏳👂🎙️📋✨😊💀🌙🧪📚🔬📝📌🎯💧⚗️🧬]', '', t)
+    t=t.replace("*","").replace("_","").replace("**","")
+    t=t.replace("°C"," degrees ").replace("km/h"," kilometers ").replace("%"," percent ")
+    t=t.replace("e.g.","for example").replace("vs.","versus")
+    t=t.replace(" - ", ", ").replace(" — ", ", ").replace("-", ", ")
+    t=re.sub(r'\s+', ' ', t).strip()
+    if not t.lower().startswith("hello"):
+        t = "Hello, let me teach you clearly and step by step. " + t
+    return t[:800] or "Sathya by He ba Haaniya teaches you"
+
+def kb_tone():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("⚡ SHORT", callback_data="t_short"), InlineKeyboardButton("👑 CEO", callback_data="t_ceo")],
+        [InlineKeyboardButton("💖 FRIENDLY", callback_data="t_friendly"), InlineKeyboardButton("🎓 FORMAL", callback_data="t_formal")],
+        [InlineKeyboardButton("🔥 ROAST", callback_data="t_roast")],
+        [InlineKeyboardButton("🌍 Any Language", callback_data="t_lang"), InlineKeyboardButton("🎤 Speak Voice", callback_data="t_voice")]
+    ])
+
+def kb_location_once():
+    btn=KeyboardButton("📍 Share Location Once — Never Again", request_location=True)
+    return ReplyKeyboardMarkup([[btn]], resize_keyboard=True, one_time_keyboard=True)
+
+def kb_main_popup():
+    return ReplyKeyboardMarkup([[KeyboardButton("🎛️ Change Tone"), KeyboardButton("🎤 Speak Voice")],[KeyboardButton("🌍 Any Language"), KeyboardButton("🔗 Check Link")]], resize_keyboard=True)
+
 
 def get_coords(place):
     if not GEOPY_AVAILABLE:
@@ -61,12 +110,14 @@ def get_coords(place):
     return None, None, ""
 
 def get_time_weather_exact(place_or_coords):
+    # Simplified - only timezone from tz_map, no openmeteo
     if isinstance(place_or_coords, tuple):
         lat, lon = place_or_coords
-        return {"timezone": "Asia/Kolkata", "display": f"{lat},{lon}", "weather": "Weather via live search 🌤️", "time": datetime.now(ZoneInfo("Asia/Kolkata")).strftime("%d %B %Y, %I:%M:%S %p IST")}
+        return {"timezone": "Asia/Kolkata", "display": f"{lat},{lon}", "weather": "Weather check via search", "time": datetime.now(ZoneInfo("Asia/Kolkata")).strftime("%d %B %Y, %I:%M:%S %p IST")}
     else:
+        # place string
         place = place_or_coords.lower() if isinstance(place_or_coords, str) else "Palamaner"
-        tz_map_simple = {
+        tz_map = {
             "south korea": "Asia/Seoul", "korea": "Asia/Seoul", "seoul": "Asia/Seoul",
             "japan": "Asia/Tokyo", "tokyo": "Asia/Tokyo",
             "usa": "America/New_York", "new york": "America/New_York",
@@ -74,7 +125,7 @@ def get_time_weather_exact(place_or_coords):
             "bihar": "Asia/Kolkata", "palamaner": "Asia/Kolkata", "india": "Asia/Kolkata",
         }
         tz = "Asia/Kolkata"
-        for k,v in tz_map_simple.items():
+        for k,v in tz_map.items():
             if k in place:
                 tz = v
                 break
@@ -83,7 +134,7 @@ def get_time_weather_exact(place_or_coords):
             time_str = now.strftime("%d %B %Y, %I:%M:%S %p")
         except:
             time_str = datetime.now().strftime("%d %B %Y, %I:%M:%S %p")
-        return {"timezone": tz, "display": place_or_coords[:100], "weather": "Weather via live search 🌤️", "time": time_str}
+        return {"timezone": tz, "display": place_or_coords[:100], "weather": "Weather via live search", "time": time_str}
 
 
 
@@ -254,29 +305,29 @@ def ask_any(q, uid, image_text=""):
         tone=user_tones.get(uid,"short")
         if tone=="roast":
             heading="<b>📌 Roast 😏🔥</b>"
-            style_instruction="ROAST MODE — LIVE SEARCH + YOUR BRAIN — Savage funny clever short — 2-3 points MAX — MAX 150 WORDS — Use 😏🔥"
+            style_instruction="ROAST MODE — LIVE SEARCH + YOUR BRAIN — Savage funny clever short — 2-3 points MAX — MAX 60 WORDS — Use 😏🔥"
             temp=0.7
-            max_tok=700
+            max_tok=200
         elif tone=="short":
             heading="<b>⚡ Short 👑</b>"
-            style_instruction="SHORT MODE — LIVE SEARCH + YOUR BRAIN — Very short crisp intelligent — 3 points MAX — MAX 150 WORDS — SEARCH and give real info with sources"
+            style_instruction="SHORT MODE — LIVE SEARCH + YOUR BRAIN — Very short crisp intelligent — 3 points MAX — MAX 60 WORDS — SEARCH and give real info with sources"
             temp=0.3
-            max_tok=800
+            max_tok=250
         elif tone=="friendly":
             heading="<b>💖 Friendly 🌸</b>"
-            style_instruction="FRIENDLY MODE — LIVE SEARCH + YOUR BRAIN — Warm sweet short — 3 points MAX — MAX 180 WORDS"
+            style_instruction="FRIENDLY MODE — LIVE SEARCH + YOUR BRAIN — Warm sweet short — 3 points MAX — MAX 70 WORDS"
             temp=0.4
-            max_tok=800
+            max_tok=250
         elif tone=="formal":
             heading="<b>🎓 Formal 📝</b>"
-            style_instruction="FORMAL MODE — LIVE SEARCH + YOUR BRAIN — Professional short — 3 points MAX — MAX 180 WORDS"
+            style_instruction="FORMAL MODE — LIVE SEARCH + YOUR BRAIN — Professional short — 3 points MAX — MAX 70 WORDS"
             temp=0.3
-            max_tok=800
+            max_tok=250
         else:
             heading="<b>👑 CEO Mode 💼</b>"
-            style_instruction="CEO MODE — LIVE SEARCH + YOUR BRAIN — Powerful short bossy — 3 points MAX — MAX 180 WORDS"
+            style_instruction="CEO MODE — LIVE SEARCH + YOUR BRAIN — Powerful short bossy — 3 points MAX — MAX 70 WORDS"
             temp=0.3
-            max_tok=800
+            max_tok=250
         # Creator identity
         if any(x in ql for x in ["who made you","who created you","kisne banaya","who built you","creator"]):
             return "<b>✅ I AM SATYA 👑</b> — CREATED BY HIBA HAANIYA.F — 15 — Palamaner 517408 — Founder & CEO — NOT any other AI 🌍✨"
@@ -465,7 +516,7 @@ async def post_init(app):
     await app.bot.delete_webhook(drop_pending_updates=True)
     print("✅ SATYA FIXED — No hardcoded Sweety — Reads real image + real link — CEO HIBA HAANIYA.F 👑🌍🔥")
 
-def main():
+async def main():
     app=Application.builder().token(BOT_TOKEN).post_init(post_init).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("tone", tone_cmd))
