@@ -1,38 +1,35 @@
 
 import os, requests, re, json, tempfile, asyncio, base64
-from datetime import datetime
-from zoneinfo import ZoneInfo
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup
-from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters
-from groq import Groq
 
-
+# --- RENDER FREE WEB SERVICE FIX - Binds to PORT so port scan passes - FREE ---
 import threading
-from http.server import HTTPServer, BaseHTTPRequestHandler
-import os
-
+from http.server import BaseHTTPRequestHandler, HTTPServer
 class HealthHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.send_header('Content-type','text/plain')
         self.end_headers()
-        self.wfile.write(b'SATYA by HIBA HAANIYA.F - Bot is alive - Founder & CEO HIBA HAANIYA.F')
+        self.wfile.write(b'SATYA by HIBA HAANIYA.F - Live - CEO HIBA HAANIYA.F')
     def log_message(self, format, *args):
         return
-
-def start_http_server():
+def start_health_server():
     try:
         port = int(os.getenv("PORT", "10000"))
         server = HTTPServer(('0.0.0.0', port), HealthHandler)
-        print(f"🌐 HTTP health server started on port {port} for Render Web Service")
+        print(f"🌐 HTTP health server started on port {port} - For Render FREE Web Service - SATYA Live")
         server.serve_forever()
     except Exception as e:
-        print(f"HTTP server error {e}")
+        print(f"Health server error {e}")
 
-# Start HTTP server in background thread for Render Web Service port binding
-http_thread = threading.Thread(target=start_http_server, daemon=True)
-http_thread.start()
+# Start health server in background thread for Render free Web Service
+threading.Thread(target=start_health_server, daemon=True).start()
 
+
+from datetime import datetime
+from zoneinfo import ZoneInfo
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup
+from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters
+from groq import Groq
 
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN") or os.getenv("BOT_TOKEN") or os.getenv("TELEGRAM_TOKEN") or ""
 BOT_TOKEN = BOT_TOKEN.strip()
@@ -520,10 +517,6 @@ async def handle_loc(update, context):
     else: await update.message.reply_text(f"✅ Saved 📍 — {lat:.6f},{lon:.6f} 🌍", reply_markup=kb_main_popup())
 
 async def post_init(app):
-    if not BOT_TOKEN or ":" not in BOT_TOKEN:
-        print("❌ INVALID TOKEN - Set TELEGRAM_BOT_TOKEN in Render Environment - Get from @BotFather - Must contain : - Current:", repr(BOT_TOKEN[:10]))
-        raise SystemExit("Invalid TELEGRAM_BOT_TOKEN")
-
     await app.bot.delete_webhook(drop_pending_updates=True)
     print("✅ SATYA FIXED — No hardcoded Sweety — Reads real image + real link — CEO HIBA HAANIYA.F 👑🌍🔥")
 
