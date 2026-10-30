@@ -37,63 +37,18 @@ def save_locs():
         pass
 
 def clean(t):
-    if not t or len(t.strip()) < 2:
-        return "<b>⚡ SATYA by HIBA HAANIYA.F 👑</b> — Ask anything 🌍"
-    t = t.replace('<b>', '___B_OPEN___').replace('</b>', '___B_CLOSE___')
-    t = re.sub(r'<[^>]+>', '', t)
-    t = t.replace('___B_OPEN___', '<b>').replace('___B_CLOSE___', '</b>')
-    t = t.replace('**','').replace('__','')
-    t = re.sub(r'\*+', '', t)
-    t = re.sub(r'_+', '', t)
-    t = t.replace('|','').replace('`','')
-    t = re.sub(r'(?i)Answer\s*\(SATYA by HIBA HAANIYA\.F\)', '', t).strip()
-    t = re.sub(r'\n{3,}', '\n\n', t)
-    lines=[x.strip() for x in t.split('\n') if x.strip()][:12]
-    result='\n'.join(lines).strip()
-    return result[:1000] if result else "<b>SATYA by HIBA HAANIYA.F 👑</b>"
-
-def detect_native_lang(text):
-    if any('\u0900' <= c <= '\u097F' for c in text): return 'hi'
-    if any('\u0C00' <= c <= '\u0C7F' for c in text): return 'te'
-    if any('\u0B80' <= c <= '\u0BFF' for c in text): return 'ta'
-    if any('\u0C80' <= c <= '\u0CFF' for c in text): return 'kn'
-    if any('\u0D00' <= c <= '\u0D7F' for c in text): return 'ml'
-    if any('\u0980' <= c <= '\u09FF' for c in text): return 'bn'
-    if any('\u0600' <= c <= '\u06FF' for c in text): return 'ar'
-    if any('\uAC00' <= c <= '\uD7AF' for c in text): return 'ko'
-    if any('\u3040' <= c <= '\u30FF' for c in text): return 'ja'
-    return 'en'
-
-def get_native_speak_text(text):
-    t=text
-    t=re.sub(r'(?i)Answer\s*\(SATYA by HIBA HAANIYA\.F\)', '', t)
-    t=t.replace("HIBA HAANIYA.F","He ba Haaniya").replace("HIBA HAANIYA","He ba Haaniya").replace("HIBA","He ba").replace("SATYA","Sathya").replace(".F","")
-    t=re.sub(r'<[^>]+>', '', t)
-    t=re.sub(r'[✅❌⚠️🎤📍🕐🌤️🌍👑⚡🔥💖🎓🎛️⏱️🔍📰😏👀💀🤔🎬🎥🔗⏳👂🎙️📋✨😊💀🌙🧪📚🔬📝📌🎯💧⚗️🧬]', '', t)
-    t=t.replace("*","").replace("_","").replace("**","")
-    t=t.replace("°C"," degrees ").replace("km/h"," kilometers ").replace("%"," percent ")
-    t=t.replace("e.g.","for example").replace("vs.","versus")
-    t=t.replace(" - ", ", ").replace(" — ", ", ").replace("-", ", ")
-    t=re.sub(r'\s+', ' ', t).strip()
-    if not t.lower().startswith("hello"):
-        t = "Hello, let me teach you clearly and step by step. " + t
-    return t[:800] or "Sathya by He ba Haaniya teaches you"
-
-def kb_tone():
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("⚡ SHORT", callback_data="t_short"), InlineKeyboardButton("👑 CEO", callback_data="t_ceo")],
-        [InlineKeyboardButton("💖 FRIENDLY", callback_data="t_friendly"), InlineKeyboardButton("🎓 FORMAL", callback_data="t_formal")],
-        [InlineKeyboardButton("🔥 ROAST", callback_data="t_roast")],
-        [InlineKeyboardButton("🌍 Any Language", callback_data="t_lang"), InlineKeyboardButton("🎤 Speak Voice", callback_data="t_voice")]
-    ])
-
-def kb_location_once():
-    btn=KeyboardButton("📍 Share Location Once — Never Again", request_location=True)
-    return ReplyKeyboardMarkup([[btn]], resize_keyboard=True, one_time_keyboard=True)
-
-def kb_main_popup():
-    return ReplyKeyboardMarkup([[KeyboardButton("🎛️ Change Tone"), KeyboardButton("🎤 Speak Voice")],[KeyboardButton("🌍 Any Language"), KeyboardButton("🔗 Check Link")]], resize_keyboard=True)
-
+    if not t:
+        return ""
+    # Remove https leak - no pubchem links
+    t = re.sub(r'https?://\S+', '', t)
+    t = t.replace("**","").replace("__","").replace("`","").replace("##","")
+    t = t.replace("*","")
+    lines = [x.strip() for x in t.split("\n") if x.strip()]
+    # Keep up to 30 lines for complete answers (was 12 - caused cut)
+    lines = lines[:30]
+    result = "\n".join(lines)
+    # Increase to 3500 chars for complete answers (was 1000 - caused half answer)
+    return result[:3500].strip()
 
 def get_coords(place):
     if not GEOPY_AVAILABLE:
@@ -303,29 +258,29 @@ def ask_any(q, uid, image_text=""):
         tone=user_tones.get(uid,"short")
         if tone=="roast":
             heading="<b>📌 Roast 😏🔥</b>"
-            style_instruction="ROAST MODE — LIVE SEARCH + YOUR BRAIN — Savage funny clever short — 2-3 points MAX — MAX 60 WORDS — Use 😏🔥"
+            style_instruction="ROAST MODE — LIVE SEARCH + YOUR BRAIN — Savage funny clever short — 2-3 points MAX — MAX 150 WORDS — Use 😏🔥"
             temp=0.7
-            max_tok=200
+            max_tok=700
         elif tone=="short":
             heading="<b>⚡ Short 👑</b>"
-            style_instruction="SHORT MODE — LIVE SEARCH + YOUR BRAIN — Very short crisp intelligent — 3 points MAX — MAX 60 WORDS — SEARCH and give real info with sources"
+            style_instruction="SHORT MODE — LIVE SEARCH + YOUR BRAIN — Very short crisp intelligent — 3 points MAX — MAX 150 WORDS — SEARCH and give real info with sources"
             temp=0.3
-            max_tok=250
+            max_tok=800
         elif tone=="friendly":
             heading="<b>💖 Friendly 🌸</b>"
-            style_instruction="FRIENDLY MODE — LIVE SEARCH + YOUR BRAIN — Warm sweet short — 3 points MAX — MAX 70 WORDS"
+            style_instruction="FRIENDLY MODE — LIVE SEARCH + YOUR BRAIN — Warm sweet short — 3 points MAX — MAX 180 WORDS"
             temp=0.4
-            max_tok=250
+            max_tok=800
         elif tone=="formal":
             heading="<b>🎓 Formal 📝</b>"
-            style_instruction="FORMAL MODE — LIVE SEARCH + YOUR BRAIN — Professional short — 3 points MAX — MAX 70 WORDS"
+            style_instruction="FORMAL MODE — LIVE SEARCH + YOUR BRAIN — Professional short — 3 points MAX — MAX 180 WORDS"
             temp=0.3
-            max_tok=250
+            max_tok=800
         else:
             heading="<b>👑 CEO Mode 💼</b>"
-            style_instruction="CEO MODE — LIVE SEARCH + YOUR BRAIN — Powerful short bossy — 3 points MAX — MAX 70 WORDS"
+            style_instruction="CEO MODE — LIVE SEARCH + YOUR BRAIN — Powerful short bossy — 3 points MAX — MAX 180 WORDS"
             temp=0.3
-            max_tok=250
+            max_tok=800
         # Creator identity
         if any(x in ql for x in ["who made you","who created you","kisne banaya","who built you","creator"]):
             return "<b>✅ I AM SATYA 👑</b> — CREATED BY HIBA HAANIYA.F — 15 — Palamaner 517408 — Founder & CEO — NOT any other AI 🌍✨"
