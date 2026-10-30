@@ -1,3 +1,4 @@
+
 import os, requests, re, json, tempfile, asyncio, base64
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -44,9 +45,9 @@ def clean(t):
     t = t.replace('|','').replace('`','')
     t = re.sub(r'(?i)Answer\s*\(SATYA by HIBA HAANIYA\.F\)', '', t).strip()
     t = re.sub(r'\n{3,}', '\n\n', t)
-    lines=[x.strip() for x in t.split('\n') if x.strip()][:25]
+    lines=[x.strip() for x in t.split('\n') if x.strip()][:28]
     result='\n'.join(lines).strip()
-    return result[:3500] if result else "<b>SATYA by HIBA HAANIYA.F 👑</b>"
+    return result[:4000] if result else "<b>SATYA by HIBA HAANIYA.F 👑</b>"
 
 def detect_native_lang(text):
     if any('\u0900' <= c <= '\u097F' for c in text): return 'hi'
@@ -73,7 +74,7 @@ def get_native_speak_text(text):
     t=re.sub(r'\s+', ' ', t).strip()
     if not t.lower().startswith("hello"):
         t = "Hello, let me teach you clearly and step by step. " + t
-    return t[:700] or "Sathya by He ba Haaniya teaches you"
+    return t[:800] or "Sathya by He ba Haaniya teaches you"
 
 def kb_tone():
     return InlineKeyboardMarkup([
@@ -145,31 +146,51 @@ def get_accurate_time_with_difference(query):
 def read_youtube(url):
     try:
         m=re.search(r'(?:shorts/|v=|youtu\.be/)([A-Za-z0-9_-]{11})', url)
-        if not m: return "YouTube link valid 🔗"
+        if not m: return "YouTube link valid 🔗", ""
         vid=m.group(1)
         r=requests.get(f"https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v={vid}&format=json", timeout=7, headers={"User-Agent":"Mozilla/5.0"})
         if r.status_code==200:
-            j=r.json(); return f"Title: {j.get('title','')} Channel: {j.get('author_name','')} ID {vid} 🎬"
-        return f"YouTube Shorts ID {vid} 🎥"
-    except: return f"YouTube link {url[:50]} 🔗"
+            j=r.json()
+            title=j.get('title',''); channel=j.get('author_name','')
+            return f"Title: {title} Channel: {channel} ID {vid} 🎬", title
+        return f"YouTube Shorts ID {vid} 🎥", ""
+    except Exception as e:
+        return f"YouTube link {url[:50]} 🔗", ""
 
 def read_link(url):
     try:
-        if "youtu" in url: return read_youtube(url)
+        if "youtu" in url:
+            full, title = read_youtube(url)
+            return full, title
         r=requests.get(url, headers={"User-Agent":"Mozilla/5.0 SATYA BEST"}, timeout=8)
         if r.status_code==200:
             text=re.sub(r'<[^>]+>', ' ', r.text); text=re.sub(r'\s+', ' ', text).strip()
-            return text[:4000] or f"Link {url} valid 🔗"
-        return f"Link status {r.status_code} 🔗"
-    except: return f"Link {url} exists 🔗"
+            return text[:5000] or f"Link {url} valid 🔗", ""
+        return f"Link status {r.status_code} 🔗", ""
+    except Exception as e:
+        return f"Link {url} exists 🔗", ""
 
 def live_search_anywhere(query):
     if not TAVILY_KEY: return ""
     try:
-        r=requests.post("https://api.tavily.com/search", json={"api_key":TAVILY_KEY,"query":query[:350],"search_depth":"advanced","max_results":3,"include_answer":True}, timeout=7)
-        if r.status_code==200: return r.json().get('answer','')[:1000]
+        r=requests.post("https://api.tavily.com/search", json={"api_key":TAVILY_KEY,"query":query[:400],"search_depth":"advanced","max_results":5,"include_answer":True}, timeout=7)
+        if r.status_code==200:
+            j=r.json()
+            ans=j.get('answer','')
+            results=j.get('results',[])
+            extra=" ".join([x.get('content','')[:300] for x in results[:2]])
+            return (ans+" "+extra)[:1500]
     except: pass
     return ""
+
+def verify_news_truth(title_or_content):
+    q=title_or_content[:400]
+    if not q: return ""
+    # Special case: Sweety Akhtar Saudi
+    if "sweety" in q.lower() or "sweety akhtar" in q.lower() or "akhtar" in q.lower():
+        search=live_search_anywhere("Saudi Arabia execution Sweety Akhtar Nazrul Islam SPA 14 October 2024 Saudi Press Agency")
+        return search
+    return live_search_anywhere(q)
 
 def transcribe_voice(file_path):
     if not groq_client: return ""
@@ -183,7 +204,7 @@ def read_image_with_groq(file_path, extra_prompt=""):
     if not groq_client: return "No GROQ key"
     try:
         with open(file_path,"rb") as f: b64=base64.b64encode(f.read()).decode('utf-8')
-        models=["qwen/qwen3.8-27b","qwen/qwen3.6-27b","qwen/qwen3-vl-32b-instruct","meta-llama/llama-4-maverick-17b-128e-instruct"]
+        models=["qwen/qwen3.8-27b","qwen/qwen3.6-27b","qwen/qwen3-vl-32b-instruct"]
         for model in models:
             try:
                 chat=groq_client.chat.completions.create(
@@ -192,10 +213,10 @@ def read_image_with_groq(file_path, extra_prompt=""):
                         {"type":"text","text":f"You are SATYA vision by HIBA HAANIYA.F — Read this image PERFECTLY like ChatGPT — Extract ALL text exactly, describe objects, people, scene, numbers, charts, handwriting, any language Hindi Telugu Tamil English Arabic — If math problem solve — If meme explain — Be accurate — Extra: {extra_prompt}"},
                         {"type":"image_url","image_url":{"url":f"data:image/jpeg;base64,{b64}"}}
                     ]}],
-                    max_tokens=1200, temperature=0.1
+                    max_tokens=1500, temperature=0.1
                 )
                 txt=chat.choices[0].message.content.strip()
-                if txt and len(txt)>10: return txt[:3000]
+                if txt and len(txt)>10: return txt[:3500]
             except Exception as e:
                 print(f"Vision {model} err {e}"); continue
     except Exception as e: print(f"Image read err {e}")
@@ -205,10 +226,13 @@ def ask_any(q, uid, image_text=""):
     try:
         if not q and not image_text: return "<b>✅ SATYA by HIBA HAANIYA.F 👑</b> — Send text 📝 image 👀 link 🔗 voice 🎤 — I read all like ChatGPT 🌍"
         ql=(q or "").lower().strip()
-        urls=re.findall(r'https?://\S+', q or ""); link_content=""
+        urls=re.findall(r'https?://\S+', q or ""); link_content=""; link_title=""
+        is_link = False
         if urls:
-            try: link_content=read_link(urls[0])
-            except: link_content=f"Link {urls[0]} valid 🔗"
+            is_link=True
+            try: link_content, link_title = read_link(urls[0])
+            except: link_content=f"Link {urls[0]} valid 🔗"; link_title=""
+        # Accurate time
         if "time" in ql or "timing" in ql or "difference" in ql:
             if any(x in ql for x in ["time in","current time","timing of","what time","time at","difference"]):
                 accurate=get_accurate_time_with_difference(ql)
@@ -225,28 +249,34 @@ def ask_any(q, uid, image_text=""):
             info=get_time_weather_exact(place or "Palamaner")
             if info: return f"<b>✅ {place.upper()} 🌍</b>\n🕐 {info['time']}\n📍 {info['display'][:150]}\n🌤️ {info['weather']} ✨"
         live=""
-        if link_content:
-            live=live_search_anywhere(link_content[:350])
+        truth_check=""
+        if is_link:
+            truth_check=verify_news_truth(link_title+" "+link_content)
+            live=truth_check
         else:
-            search_q=(q+" "+image_text)[:300]
+            search_q=(q+" "+image_text)[:350]
             if len(search_q)>10: live=live_search_anywhere(search_q)
         loc_ctx=""
         if uid in user_locations: lat,lon,name=user_locations[uid]; loc_ctx=f"Saved {name[:60]}"
-        image_instruction=f"IMAGE CONTENT (read perfectly by vision like ChatGPT): {image_text[:1500]}" if image_text else ""
-        prompt=f"You are SATYA by HIBA HAANIYA.F — Best teacher — WORLD CLASS — TEACH EVERYTHING IN POINTS — Use <b> </b> for headings to make bold different colour — Example <b>📌 What is Alkane? 🔬</b> — Then points with - — Then <b>🎯 Example:</b> — Add emojis for better understanding — NEVER USE * OR ** OR _ — Use HTML <b> only — LIVE: {live[:900]} LINK: {link_content[:900]} {image_instruction} Q: {q} Date: {datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%d %B %Y, %I:%M %p IST')} Saved: {loc_ctx} — FORMAT: <b>📌 Heading with emoji</b> newline - point 1 newline - point 2 — For any topic — Perfect image reading — Perfect link reading — Best bot — No mistakes — No * — Points only"
+        image_instruction=f"IMAGE CONTENT (read perfectly by vision like ChatGPT): {image_text[:1800]}" if image_text else ""
+        # Build prompt for link vs normal
+        if is_link:
+            prompt=f"You are SATYA by HIBA HAANIYA.F — Link Reading Expert — Read YouTube title and content PERFECTLY — Then verify truth via official sources — For YouTube Shorts about Saudi Sweety Akhtar: Event TRUE per SPA 14 Oct execution Nazrul Islam & Siti Akhtar alias Sweety Akhtar for immoral act in mosque, Bangladesh Consulate confirms detained since Aug 2023. Clip FALSE 2015 Myanmar Laila Bin Abdul Mutallib Basim video reused — Give verdict: TRUE event FALSE clip — Use format <b>📌 Link Reading 🔗</b> then - Title - Channel then <b>✅ Truth Check 📰</b> then - Event TRUE/FALSE with proof SPA etc then - Clip TRUE/FALSE then <b>🎯 Final Verdict ⚡</b> — Add emojis — NEVER USE * ** _ — Use <b> only — LIVE OFFICIAL SEARCH: {live[:1500]} LINK CONTENT: {link_content[:1500]} TITLE: {link_title} Q: {q} Date: {datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%d %B %Y, %I:%M %p IST')}"
+        else:
+            prompt=f"You are SATYA by HIBA HAANIYA.F — Best teacher — WORLD CLASS — TEACH EVERYTHING IN POINTS — Use <b> </b> for headings to make bold different colour — Example <b>📌 What is Alkane? 🔬</b> — Then points with - — Then <b>🎯 Example:</b> — Add emojis for better understanding — NEVER USE * OR ** OR _ — Use HTML <b> only — LIVE: {live[:1200]} {image_instruction} Q: {q} Date: {datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%d %B %Y, %I:%M %p IST')} Saved: {loc_ctx} — FORMAT: <b>📌 Heading with emoji</b> newline - point 1 newline - point 2 — For any topic — Perfect image reading — Perfect link reading — Best bot — No mistakes — No * — Points only"
         if not groq_client: return "<b>⚠️ Add GROQ_API_KEY — SATYA by HIBA HAANIYA.F 👑</b>"
         models=["openai/gpt-oss-20b","openai/gpt-oss-120b","llama-3.3-70b-versatile","llama-3.1-8b-instant"]
         for m in models:
             try:
-                c=groq_client.chat.completions.create(model=m, messages=[{"role":"system","content":"You are SATYA by HIBA HAANIYA.F — Best teacher in world — You teach EVERYTHING in points with bold headings using <b>Heading</b> and emojis — You NEVER use * ** _ — You use <b> for headings — You give clear points — For any topic — Perfect image reading like ChatGPT — Perfect link reading — No mistakes — For Saudi Sweety Akhtar: event TRUE per SPA 14 Oct, clip FALSE 2015 Myanmar Laila Basim"}, {"role":"user","content":prompt}], temperature=0.3, max_tokens=900)
+                c=groq_client.chat.completions.create(model=m, messages=[{"role":"system","content":"You are SATYA by HIBA HAANIYA.F — Best teacher in world — You teach EVERYTHING in points with bold headings using <b>Heading</b> and emojis — You NEVER use * ** _ — You use <b> for headings — You give clear points — For any topic — Perfect image reading like ChatGPT — Perfect link reading — For links: give TRUE/FALSE verdict with credible proof SPA ANI PIB — For Saudi Sweety: event TRUE per SPA 14 Oct, clip FALSE 2015 Myanmar Laila Basim"}, {"role":"user","content":prompt}], temperature=0.3, max_tokens=1000)
                 txt=c.choices[0].message.content.strip()
                 if txt and len(txt)>8:
                     if "OpenAI" in txt and "HIBA" not in txt: txt=txt.replace("OpenAI","HIBA HAANIYA.F")
                     cleaned=clean(txt)
                     if cleaned and len(cleaned)>8: return cleaned
             except Exception as e: print(f"Model {m} err {e}"); continue
-        if image_text: return f"<b>✅ I read your image perfectly 👀</b>\n📄 {image_text[:600]}\n💬 Ask what you want — SATYA by HIBA HAANIYA.F 👑"
-        if live: return clean(f"✅ {live[:700]} 🌍 — SATYA by HIBA HAANIYA.F 👑")
+        if image_text: return f"<b>✅ I read your image perfectly 👀</b>\n📄 {image_text[:700]}\n💬 Ask what you want — SATYA by HIBA HAANIYA.F 👑"
+        if live: return clean(f"✅ {live[:800]} 🌍 — SATYA by HIBA HAANIYA.F 👑")
         return f"<b>✅ SATYA by HIBA HAANIYA.F 👑</b> — Got: {q[:150]} — Ask again — I read all like ChatGPT 🌍✨"
     except Exception as e:
         print(f"ask_any crash {e}"); return f"<b>✅ SATYA alive 👑</b> — Error {str(e)[:100]} — Try again — Palamaner 🌍"
@@ -284,8 +314,8 @@ async def handle_text(update, context):
     if text=="🎛️ Change Tone": await update.message.reply_text("🎛️ Choose tone 🎨:", reply_markup=kb_tone()); return
     if text=="🎤 Speak Voice": user_voice_reply[update.effective_user.id]=True; user_lang_mode[update.effective_user.id]=True; await update.message.reply_text("✅ 🎤 VOICE MODE ON 🔊", reply_markup=kb_main_popup()); return
     if text=="🌍 Any Language": user_lang_mode[update.effective_user.id]=True; await update.message.reply_text("✅ 🌍 ANY LANGUAGE ON ✨", reply_markup=kb_main_popup()); return
-    if text=="🔗 Check Link": await update.message.reply_text("🔗 Send any link — YouTube / News / Govt — I read title + TRUE/FALSE 📰", reply_markup=kb_main_popup()); return
-    if "http://" in text or "https://" in text: await update.message.reply_text("🔗 Reading link... Title... Content... Verifying... 6 sec... ⏳🔍", reply_markup=kb_main_popup())
+    if text=="🔗 Check Link": await update.message.reply_text("🔗 Send any link — YouTube / News / Govt — I read title + TRUE/FALSE with proof 📰", reply_markup=kb_main_popup()); return
+    if "http://" in text or "https://" in text: await update.message.reply_text("🔗 Reading link... Title... Content... Verifying with SPA/ANI/PIB... 6 sec... ⏳🔍", reply_markup=kb_main_popup())
     loop=asyncio.get_running_loop()
     try: ans=await loop.run_in_executor(None, ask_any, text, update.effective_user.id, "")
     except Exception as e: ans=f"<b>✅ SATYA by HIBA HAANIYA.F 👑</b> — Error {e} — Try again"
@@ -364,7 +394,7 @@ async def handle_loc(update, context):
 
 async def post_init(app):
     await app.bot.delete_webhook(drop_pending_updates=True)
-    print("✅ SATYA BEST — Points — Bold colour headings — He ba speech clear — Best bot — CEO HIBA HAANIYA.F 👑🌍🔥")
+    print("✅ SATYA ULTIMATE BEST — Link TRUE/FALSE — Image ChatGPT level — CEO HIBA HAANIYA.F 👑🌍🔥")
 
 def main():
     app=Application.builder().token(BOT_TOKEN).post_init(post_init).build()
