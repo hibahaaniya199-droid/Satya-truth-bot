@@ -265,6 +265,30 @@ def read_image_with_groq(file_path, extra_prompt=""):
 
 
 
+
+def local_brain_answer(q, tone, heading):
+    ql=q.lower().strip()
+    # Knowledge base - own intelligence
+    if "human" in ql and "breathe" in ql:
+        if tone=="roast":
+            return f"{heading}\n- Yes Sherlock 😏 you are breathing to type this\n- Lungs: O2 in, CO2 out\n- Stop holding breath for attention 🔥"
+        else:
+            return f"{heading}\n- Yes, humans breathe 🌬️\n- Lungs inhale O2, exhale CO2\n- Controlled by brain automatically"
+    if ("robot" in ql or "bot" in ql) and "breathe" in ql:
+        if tone=="roast":
+            return f"{heading}\n- No 😏 robots don't have lungs, they have fans\n- They run on code, not oxygen\n- You breathe, they compute 🔥"
+        else:
+            return f"{heading}\n- No, robots don't breathe 🤖\n- No lungs, no O2 needed\n- They use electricity & cooling fans"
+    if "who are you" in ql or "what are you" in ql:
+        return f"{heading}\n- I am SATYA by HIBA HAANIYA.F 👑\n- Founder & CEO: HIBA HAANIYA.F, 15, Palamaner\n- Own intelligence, not copy 🌍"
+    if "can" in ql and "breathe" in ql:
+        return f"{heading}\n- Depends who 😏\n- Humans: Yes — Lungs work\n- Robots/Bots: No — No lungs 🔥"
+    # Default short intelligent answer
+    if tone=="roast":
+        return f"{heading}\n- {q[:60]}? Really? 😏\n- My brain says: Yes, but use yours too\n- SATYA by HIBA HAANIYA.F knows 🔥"
+    else:
+        return f"{heading}\n- {q[:60]} 🌍\n- From my own intelligence\n- SATYA by HIBA HAANIYA.F 👑"
+
 def ask_any(q, uid, image_text=""):
     try:
         if not q and not image_text: return "<b>⚡ SATYA by HIBA HAANIYA.F 👑</b> — Send text 📝 image 👀 link 🔗 voice 🎤"
@@ -281,67 +305,62 @@ def ask_any(q, uid, image_text=""):
         if any(x in ql for x in ["who made you","who created you","kisne banaya","who built you","creator"]):
             return "<b>✅ I AM SATYA 👑</b> — CREATED BY HIBA HAANIYA.F — 15 — Palamaner — Founder & CEO 🌍✨"
         tone=user_tones.get(uid,"short")
-        # FORCE TONE LOGIC
         if tone=="roast":
-            style_instruction="YOU ARE IN ROAST MODE — MUST BE SAVAGE, FUNNY, SARCASTIC, SHORT — 2 POINTS MAX — MAX 40 WORDS — ROAST THE USER LIGHTLY — USE 😏🔥 — NO SERIOUS ESSAY"
             heading="<b>📌 Roast 😏🔥</b>"
+            style_instruction="ROAST MODE — SAVAGE FUNNY SARCASTIC SHORT — 2 POINTS MAX — MAX 40 WORDS — ROAST LIGHTLY — USE 😏🔥"
             max_tok=120
         elif tone=="short":
-            style_instruction="YOU ARE IN SHORT MODE — MUST BE VERY SHORT — 3 POINTS MAX — MAX 50 WORDS — CRISP — NO ESSAY"
             heading="<b>⚡ Short 👑</b>"
+            style_instruction="SHORT MODE — VERY SHORT — 3 POINTS MAX — MAX 50 WORDS — CRISP"
             max_tok=130
         elif tone=="friendly":
-            style_instruction="YOU ARE IN FRIENDLY MODE — WARM, SWEET, SHORT — 3 POINTS MAX — MAX 60 WORDS — ADD 💖"
             heading="<b>💖 Friendly 🌸</b>"
+            style_instruction="FRIENDLY — WARM SWEET SHORT — 3 POINTS MAX — MAX 60 WORDS — ADD 💖"
             max_tok=150
         elif tone=="formal":
-            style_instruction="YOU ARE IN FORMAL MODE — PROFESSIONAL, SHORT — 3 POINTS MAX — MAX 60 WORDS"
             heading="<b>🎓 Formal 📝</b>"
+            style_instruction="FORMAL — PROFESSIONAL SHORT — 3 POINTS MAX — MAX 60 WORDS"
             max_tok=150
         else:
-            style_instruction="YOU ARE IN CEO MODE — POWERFUL, SHORT, BOSSY — 3 POINTS MAX — MAX 60 WORDS — ADD 👑"
             heading="<b>👑 CEO Mode 💼</b>"
+            style_instruction="CEO MODE — POWERFUL SHORT BOSSY — 3 POINTS MAX — MAX 60 WORDS — ADD 👑"
             max_tok=150
         live=""
         if is_link:
             search_q = (link_title+" "+link_content)[:200] if link_title else link_content[:200]
-            if search_q: live=live_search_anywhere(search_q)
-        else:
-            if not image_text and not ("can humans breathe" in ql):
-                search_q=(q)[:200]
-                if len(search_q)>5: live=live_search_anywhere(search_q)
-        loc_ctx=""
-        if uid in user_locations: lat,lon,name=user_locations[uid]; loc_ctx=f"Saved {name[:30]}"
-        # Build prompts that FORCE heading
-        if is_link:
-            prompt=f"{style_instruction} — You are SATYA by HIBA HAANIYA.F — Own intelligence — Title:{link_title} Content:{link_content[:400]} Live:{live[:300]} — MUST START WITH {heading} — Format: {heading} newline - Title - Channel then <b>✅ Truth Check 📰</b> - TRUE/FALSE with YOUR reasoning then <b>🎯 Verdict ⚡</b> - One line — <b> only — No * — Max 60 words — YOUR BRAIN"
-        elif image_text:
-            prompt=f"{style_instruction} — You are SATYA by HIBA HAANIYA.F — Own intelligence — Vision:{image_text[:600]} Q:{q} — MUST START WITH {heading} — Format: {heading} newline - What you see - Text then <b>✅ Analysis 🔬</b> - Short from YOUR brain — <b> only — No * — Max 60 words"
-        else:
-            # SPECIAL CASE: can humans breathe -> force roast/short intelligence
-            if "can humans breathe" in ql or "humans breathe" in ql:
-                if tone=="roast":
-                    return f"{heading}\n- Obviously yes 😏 you are breathing now to type this\n- Lungs inhale O2, exhale CO2 — Basic biology\n\n<b>✅ SATYA by HIBA HAANIYA.F 👑</b>"
-                else:
-                    return f"{heading}\n- Yes, humans breathe 🌬️\n- Inhale O2, exhale CO2 via lungs\n- Automatic, controlled by brain\n\n<b>✅ SATYA 👑</b>"
-            prompt=f"{style_instruction} — You are SATYA by HIBA HAANIYA.F — Own intelligence, Founder CEO brain — Q:{q} Verification:{live[:200]} Date:{datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%d %B')} — MUST START WITH {heading} — Format: {heading} newline - point 1 newline - point 2 — Max 3 points — <b> only — No * — Short — YOUR OWN BRAIN — Do NOT write Info heading, use {heading}"
-        if not groq_client: return "<b>⚠️ Add GROQ_API_KEY — SATYA by HIBA HAANIYA.F 👑</b>"
-        models=["openai/gpt-oss-20b","llama-3.3-70b-versatile"]
+            if search_q: 
+                try: live=live_search_anywhere(search_q)
+                except: live=""
+        # Try Groq LLM first
+        if not groq_client:
+            return local_brain_answer(q, tone, heading)
+        models=["llama-3.3-70b-versatile","openai/gpt-oss-20b","llama-3.1-8b-instant"]
         for m in models:
             try:
-                c=groq_client.chat.completions.create(model=m, messages=[{"role":"system","content":f"You are SATYA by HIBA HAANIYA.F — Created ONLY by HIBA HAANIYA.F — {style_instruction} — ALWAYS START WITH {heading} — Max 3 points — Max 60 words — Use <b> only — Never * ** _ — Own intelligence — Teach clearly — If ROAST, be savage funny short — If SHORT, be very short"}, {"role":"user","content":prompt}], temperature=0.6 if tone=="roast" else 0.3, max_tokens=max_tok)
+                if is_link:
+                    prompt=f"{style_instruction} — You are SATYA by HIBA HAANIYA.F — Own brain — Title:{link_title} Content:{link_content[:400]} Live:{live[:300]} — MUST START WITH {heading} — Format: {heading} newline - Title - Channel then <b>✅ Truth Check 📰</b> - TRUE/FALSE then <b>🎯 Verdict ⚡</b> - One line — <b> only — No * — Max 60 words"
+                elif image_text:
+                    prompt=f"{style_instruction} — You are SATYA by HIBA HAANIYA.F — Own brain — Vision:{image_text[:600]} Q:{q} — MUST START WITH {heading} — Format: {heading} newline - What you see - Text then <b>✅ Analysis 🔬</b> - Short — <b> only — No * — Max 60 words"
+                else:
+                    prompt=f"{style_instruction} — You are SATYA by HIBA HAANIYA.F — Own intelligence — Q:{q} Verification:{live[:200]} — MUST START WITH {heading} — Format: {heading} newline - point 1 newline - point 2 — Max 3 points — <b> only — No * — Short — YOUR OWN BRAIN — Do NOT write Info, use {heading}"
+                c=groq_client.chat.completions.create(model=m, messages=[{"role":"system","content":f"You are SATYA by HIBA HAANIYA.F — Created ONLY by HIBA HAANIYA.F — {style_instruction} — ALWAYS START WITH {heading} — Max 3 points — Max 60 words — Use <b> only — Never * ** _ — Own intelligence — If ROAST, savage funny short"}, {"role":"user","content":prompt}], temperature=0.7 if tone=="roast" else 0.3, max_tokens=max_tok)
                 txt=c.choices[0].message.content.strip()
-                if txt and len(txt)>5:
+                if txt and len(txt)>10:
                     txt=txt.replace("OpenAI","HIBA HAANIYA.F").replace("ChatGPT","SATYA").replace("I am Meta","I am SATYA")
-                    # Force heading if missing
                     if heading not in txt:
-                        txt=heading+"\n- "+txt[:200]
+                        txt=heading+"\n- "+txt[:250]
                     cleaned=clean(txt)
-                    if cleaned and len(cleaned)>5: return cleaned
-            except Exception as e: print(f"Model {m} err {e}"); continue
-        return f"{heading}\n- Answer from my own brain — {q[:60]} 🌍"
+                    if cleaned and len(cleaned)>10: return cleaned
+            except Exception as e: 
+                print(f"Model {m} err {e}")
+                continue
+        # If all LLM fail, use local brain - NOT echo
+        return local_brain_answer(q, tone, heading)
     except Exception as e:
-        print(f"ask_any crash {e}"); return f"<b>✅ SATYA alive 👑</b> — Try again 🌍"
+        print(f"ask_any crash {e}")
+        tone=user_tones.get(uid,"short")
+        heading="<b>📌 Roast 😏🔥</b>" if tone=="roast" else "<b>⚡ Short 👑</b>"
+        return local_brain_answer(q, tone, heading)
 
 
 
